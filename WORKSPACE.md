@@ -28,7 +28,7 @@ then to AIWG.md for framework discovery and routing.
 
 - [AIWG framework context](./AIWG.md)
 - [AIWG project configuration](.aiwg/aiwg.config)
-- [Project-local quickref](.aiwg/quickref.json) (when configured)
+- Project-local quickref: `.aiwg/quickref.json` when configured
 
 <!-- AIWG:workspace-context:end -->
 
