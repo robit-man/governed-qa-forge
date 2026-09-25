@@ -1,0 +1,7 @@
+ref_id: REF-002
+grade: high
+design: peer-reviewed empirical instruction-evolution study
+strengths: [operational evolution operators, multiple evaluations, ablations]
+limitations: [teacher-specific effects, automatic-evaluation dependence]
+directness: high
+decision_use: controlled breadth and difficulty evolution

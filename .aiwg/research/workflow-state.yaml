@@ -1,0 +1,21 @@
+workflow: synthetic-qa-research-induction
+version: "1.0"
+updated: 2026-09-25
+status: complete
+stages:
+  discovery: complete
+  acquisition: complete
+  integrity_validation: complete
+  fulltext_extraction: complete
+  grade_assessment: complete
+  finding_documents: complete
+  synthesis: complete
+  best_practices_audit: complete
+  provenance_capture: complete
+  scaffold: complete
+counts:
+  acquired_primary_sources: 18
+  finding_documents: 18
+  quality_assessments: 18
+decision: pass_with_required_controls
+next_gate: authorize a real teacher and run the 500-1000-record calibration pilot

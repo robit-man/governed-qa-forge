@@ -1,0 +1,7 @@
+ref_id: REF-016
+grade: high
+design: peer-reviewed selective teacher-revision study
+strengths: [targets weak responses, avoids indiscriminate rewriting, downstream evaluation]
+limitations: [critic and teacher dependence, added inference cost]
+directness: high
+decision_use: selective critique-revise loop

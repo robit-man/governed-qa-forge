@@ -1,0 +1,7 @@
+ref_id: REF-003
+grade: moderate
+design: large-scale technical report with comparative evaluations
+strengths: [progressive learning, varied system instructions, explanation traces]
+limitations: [preprint, proprietary teacher dependence, limited reproducibility]
+directness: high
+decision_use: teacher-trace schema and progressive curricula

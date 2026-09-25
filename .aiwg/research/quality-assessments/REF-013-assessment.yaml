@@ -1,0 +1,7 @@
+ref_id: REF-013
+grade: high
+design: widely adopted documentation framework with case-informed requirements
+strengths: [lifecycle coverage, accountability prompts, broad applicability]
+limitations: [documentation does not itself prove quality or compliance]
+directness: high
+decision_use: versioned corpus datasheet and release card

@@ -1,0 +1,7 @@
+ref_id: REF-012
+grade: moderate
+design: technical report with synthetic curriculum experiments
+strengths: [data-quality emphasis, constrained generation, downstream code evaluation]
+limitations: [code-specific, proprietary generation details, contamination debate]
+directness: moderate
+decision_use: textbook-like clarity and concept progression

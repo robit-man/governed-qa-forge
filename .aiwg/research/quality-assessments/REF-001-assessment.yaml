@@ -1,0 +1,7 @@
+ref_id: REF-001
+grade: high
+design: empirical instruction-tuning study with public method and ablations
+strengths: [clear generation pipeline, explicit filtering, downstream evaluation]
+limitations: [older base-model era, English-centric, teacher-dependent]
+directness: high
+decision_use: seed bootstrapping and staged filtering

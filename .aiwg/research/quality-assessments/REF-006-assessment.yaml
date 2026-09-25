@@ -1,0 +1,7 @@
+ref_id: REF-006
+grade: high
+design: peer-reviewed data-selection study with SFT and preference-tuning evaluations
+strengths: [joint complexity-quality-diversity scoring, compact successful subsets]
+limitations: [scorer bias, model- and benchmark-dependent thresholds]
+directness: high
+decision_use: multi-objective candidate ranking

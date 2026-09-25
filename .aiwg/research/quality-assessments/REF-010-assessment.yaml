@@ -1,0 +1,7 @@
+ref_id: REF-010
+grade: moderate
+design: theoretical and empirical preprint on mixed real/synthetic accumulation
+strengths: [tests mitigating regime, directly contrasts replacement and accumulation]
+limitations: [preprint, stylized assumptions, task-transfer uncertainty]
+directness: high
+decision_use: preserve authoritative data while adding synthetic data

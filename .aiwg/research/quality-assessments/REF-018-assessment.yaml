@@ -1,0 +1,7 @@
+ref_id: REF-018
+grade: high
+design: peer-reviewed controlled model-imitation study
+strengths: [capability-vs-style distinction, broad evaluation, actionable negative result]
+limitations: [specific student and teacher era, does not reject all distillation]
+directness: high
+decision_use: require verifiable capability content, not stylistic mimicry

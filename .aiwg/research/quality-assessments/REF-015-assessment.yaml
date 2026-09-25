@@ -1,0 +1,7 @@
+ref_id: REF-015
+grade: high
+design: peer-reviewed instruction-tagging and data-selection study
+strengths: [fine-grained taxonomy, scalable tagging, compact subset results]
+limitations: [automatic tagger errors, taxonomy drift across domains]
+directness: high
+decision_use: versioned category taxonomy and coverage measurement

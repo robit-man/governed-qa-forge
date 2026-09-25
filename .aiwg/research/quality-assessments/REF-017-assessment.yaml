@@ -1,0 +1,7 @@
+ref_id: REF-017
+grade: high
+design: peer-reviewed instruction-selection study
+strengths: [explicit quality-diversity optimization, multiple tasks and evaluations]
+limitations: [scoring proxies can omit rare valuable examples]
+directness: high
+decision_use: Pareto selection rather than quality-only ranking

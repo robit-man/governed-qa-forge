@@ -1,0 +1,7 @@
+ref_id: REF-004
+grade: high
+design: peer-reviewed controlled alignment-data study
+strengths: [careful curation, human preference evaluation, strong volume counterexample]
+limitations: [narrow model family and scale, not a universal optimum]
+directness: high
+decision_use: quality-first corpus sizing

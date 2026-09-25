@@ -1,0 +1,7 @@
+ref_id: REF-014
+grade: moderate
+design: large-scale empirical preprint on persona-conditioned synthesis
+strengths: [broad persona construction, multiple synthesis modes, diversity focus]
+limitations: [hallucination and stereotype risk, persona count is not semantic coverage]
+directness: moderate
+decision_use: bounded persona diversity after safety review

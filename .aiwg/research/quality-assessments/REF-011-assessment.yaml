@@ -1,0 +1,7 @@
+ref_id: REF-011
+grade: moderate
+design: empirical preprint on evaluator position bias
+strengths: [controlled order swaps, multiple judges and tasks]
+limitations: [judge versions change, does not exhaust evaluator failure modes]
+directness: high
+decision_use: bidirectional pair judging and calibration

@@ -1,0 +1,7 @@
+ref_id: REF-007
+grade: moderate
+design: empirical preprint on diversity metrics and subset selection
+strengths: [metric comparison, DPP formulation, alignment-data focus]
+limitations: [preprint, metric validity varies by embedding and domain]
+directness: high
+decision_use: diversity diagnostics, not a single universal cutoff

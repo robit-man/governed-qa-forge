@@ -1,0 +1,7 @@
+ref_id: REF-005
+grade: high
+design: peer-reviewed large-scale synthetic-data generation and selection study
+strengths: [millions of candidates, multi-metric filtering, reproducible selection logic]
+limitations: [aligned-model prompt prior, computationally expensive at reported scale]
+directness: high
+decision_use: over-generation and quality/diversity selection

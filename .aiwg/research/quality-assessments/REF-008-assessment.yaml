@@ -1,0 +1,7 @@
+ref_id: REF-008
+grade: high
+design: large-scale empirical deduplication study
+strengths: [memorization analysis, exact and near-duplicate treatment, downstream effects]
+limitations: [pretraining-centric, thresholds require task-specific calibration]
+directness: moderate
+decision_use: exact and approximate duplicate gates

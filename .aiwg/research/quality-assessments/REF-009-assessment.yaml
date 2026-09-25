@@ -1,0 +1,7 @@
+ref_id: REF-009
+grade: high
+design: theoretical and empirical recursive-training study, later peer-reviewed in Nature
+strengths: [formal framing, repeated-generation experiments, tail-loss analysis]
+limitations: [specific recursive replacement regimes, not all synthetic augmentation]
+directness: high
+decision_use: generation-depth and real-data-retention controls
