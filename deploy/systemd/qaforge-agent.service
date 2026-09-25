@@ -1,0 +1,37 @@
+[Unit]
+Description=Governed QA Forge opaque worker API
+After=network.target
+
+[Service]
+Type=simple
+User=qaforge-agent
+Group=qaforge-broker
+WorkingDirectory=/var/lib/qaforge/workspace/.service
+EnvironmentFile=/etc/qaforge/qaforge-agent.env
+ExecStart=/opt/qaforge/.venv/bin/qaforge serve-agent /var/lib/qaforge/workspace --database /var/lib/qaforge/workspace/.service/service.sqlite3 --host 127.0.0.1 --port 8411
+Restart=on-failure
+RestartSec=3s
+UMask=0007
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/qaforge/workspace/.service
+InaccessiblePaths=/var/lib/qaforge/workspace/qaforge.yaml /var/lib/qaforge/workspace/registry /var/lib/qaforge/workspace/seeds -/var/lib/qaforge/workspace/runs -/var/lib/qaforge/workspace/releases
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

@@ -2,6 +2,10 @@
 
 Governed QA Forge is a dataset compiler for synthetic question/answer corpora. It generates candidates, verifies and decontaminates them, records human review, and emits reproducible fine-tuning releases with row-level lineage.
 
+It also provides a split-plane service for blind agent workers: the worker API receives only a
+self-contained question and never sees sources, reference answers, verifier contracts, scores, or
+review outcomes. A private control API finalizes collected answers through the same governed gates.
+
 It is deliberately not a prompt-to-JSONL script. A row cannot enter a release unless its source and teacher are authorized, its family split is frozen, its answer passes an independent verifier, its overlap checks pass, and an explicit review decision exists.
 
 ## What it produces
@@ -105,6 +109,19 @@ adapter. It also does not safely execute arbitrary generated code; add executabl
 behind an isolation boundary appropriate to your environment.
 
 See [the governance guide](docs/governance.md), [record schema](docs/schema.md), and [security policy](SECURITY.md).
+For framework-neutral worker integration and systemd deployment, see the
+[opaque service guide](docs/opaque-service.md).
+
+## 1,000-record calibration
+
+The calibration command creates a new workspace, submits 3,000 candidate answers through the
+blind worker contract, and selects 1,000 verified lineages. It intentionally stops at independent
+review and does not create a production release:
+
+```bash
+qaforge calibration-pilot pilot-workspace --size 1000 \
+  --run-id opaque-calibration-1000
+```
 
 ## Development
 

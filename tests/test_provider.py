@@ -38,10 +38,17 @@ def test_fr013_openai_compatible_provider_parses_strict_json(tmp_path, monkeypat
         assert request.headers["authorization"] == "Bearer not-persisted-secret"
         body = json.loads(request.content)
         assert body["model"] == "teacher-v1"
-        assert "reference_answer" not in body["messages"][1]["content"]
+        worker_prompt = body["messages"][1]["content"]
+        assert "reference_answer" not in worker_prompt
+        assert "seed-arithmetic-001" not in worker_prompt
+        assert "family-arithmetic-001" not in worker_prompt
+        assert "SRC-DEMO" not in worker_prompt
+        assert "verifier" not in worker_prompt
+        assert "dimensions" not in worker_prompt
+        assert "17 multiplied by 6" in worker_prompt
         content = {
             "candidates": [
-                {"answer": "102"},
+                {"answer": "102", "citation_ids": ["forged-source"]},
                 {"answer": "102"},
                 {"answer": "102"},
             ]
@@ -57,6 +64,7 @@ def test_fr013_openai_compatible_provider_parses_strict_json(tmp_path, monkeypat
     )
     assert len(outputs) == 3
     assert all(output.answer == "102" for output in outputs)
+    assert all(output.citation_ids == [] for output in outputs)
     assert template_id
     assert len(template_hash) == 64
 

@@ -10,8 +10,10 @@ from qaforge.errors import ForgeError
 from qaforge.fixtures import scaffold_workspace
 from qaforge.io import read_jsonl
 from qaforge.models import CandidateRecord, GateStatus
+from qaforge.pilot import run_calibration_pilot
 from qaforge.pipeline import approve_all, export_review, generate_run, import_reviews, load_state
 from qaforge.release import build_release, release_anchor, verify_release
+from qaforge.service import ServiceSettings, create_agent_app, create_control_app
 from qaforge.workspace import Workspace
 
 app = typer.Typer(
@@ -173,6 +175,80 @@ def status_command(
             else []
         )
         typer.echo(json.dumps({"runs": states, "releases": releases}, indent=2))
+    except (ForgeError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+@app.command("serve-agent")
+def serve_agent_command(
+    path: Annotated[Path, typer.Argument(help="Corpus workspace path.")],
+    database: Annotated[Path, typer.Option("--database", help="Private SQLite broker path.")],
+    host: Annotated[str, typer.Option(help="Worker-plane bind address.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=1, max=65535)] = 8411,
+    lease_seconds: Annotated[int, typer.Option(min=30, max=86_400)] = 900,
+) -> None:
+    """Run the opaque worker plane (health, lease, and submit only)."""
+    try:
+        import uvicorn
+
+        settings = ServiceSettings.from_agent_env(path, database, lease_seconds)
+        uvicorn.run(
+            create_agent_app(settings),
+            host=host,
+            port=port,
+            access_log=True,
+            server_header=False,
+            date_header=False,
+            proxy_headers=False,
+            limit_concurrency=128,
+            backlog=128,
+            timeout_keep_alive=5,
+        )
+    except (ForgeError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+@app.command("serve-control")
+def serve_control_command(
+    path: Annotated[Path, typer.Argument(help="Corpus workspace path.")],
+    database: Annotated[Path, typer.Option("--database", help="Private SQLite broker path.")],
+    host: Annotated[str, typer.Option(help="Control-plane bind address.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=1, max=65535)] = 8412,
+    lease_seconds: Annotated[int, typer.Option(min=30, max=86_400)] = 900,
+) -> None:
+    """Run the private collection control plane; bind it to a trusted interface."""
+    try:
+        import uvicorn
+
+        settings = ServiceSettings.from_control_env(path, database, lease_seconds)
+        uvicorn.run(
+            create_control_app(settings),
+            host=host,
+            port=port,
+            access_log=True,
+            server_header=False,
+            date_header=False,
+            proxy_headers=False,
+            limit_concurrency=128,
+            backlog=128,
+            timeout_keep_alive=5,
+        )
+    except (ForgeError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+@app.command("calibration-pilot")
+def calibration_pilot_command(
+    path: Annotated[Path, typer.Argument(help="New calibration workspace path.")],
+    size: Annotated[int, typer.Option(min=10, help="Selected-record target.")] = 1000,
+    run_id: Annotated[str, typer.Option(help="Immutable pilot run ID.")] = (
+        "opaque-calibration-1000"
+    ),
+) -> None:
+    """Run the deterministic blind-service calibration and stop before review."""
+    try:
+        result = run_calibration_pilot(path, size=size, run_id=run_id)
+        typer.echo(json.dumps(result, indent=2, sort_keys=True))
     except (ForgeError, OSError, ValueError) as exc:
         _fail(exc)
 

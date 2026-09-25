@@ -157,7 +157,7 @@ class SourceEntry(BaseModel):
 
 class TeacherEntry(BaseModel):
     teacher_id: str
-    provider: Literal["deterministic", "openai-compatible"]
+    provider: Literal["deterministic", "openai-compatible", "opaque-agent-service"]
     model: str
     base_url: HttpUrl | None = None
     api_key_env: str | None = Field(default=None, pattern=r"^QAFORGE_TEACHER_[A-Z0-9_]+$")

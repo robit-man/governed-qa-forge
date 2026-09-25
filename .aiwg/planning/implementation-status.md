@@ -15,7 +15,15 @@
 - atomic immutable release builder with Datasheet, Croissant, PROV, rejection ledger, fixity, and
   external root-anchor verification
 - CLI, documentation, tests, coverage gate, CI, package build, and offline E2E demo
+- split worker/control service with opaque task leases, feedback-free receipts, and SQLite concurrency
+- hardened systemd templates and framework-neutral HTTP integration documentation
+- sanitized direct-provider prompts that exclude private seed, source, lineage, and verifier metadata
+- 1,000-lineage calibration: 3,000/3,000 valid submissions, 1,000 selected, exact category balance,
+  and no validation/verifier/contamination failures
 
 ## Next operational milestone
 
-Authorize a specific real teacher/provider, create a reviewed domain seed bank, and execute the 500–1,000 accepted-record calibration pilot before scaling to several thousand records.
+Complete independent review of the calibration output, then authorize a domain-specific model
+teacher and execute an open-ended quality pilot before scaling beyond the demonstrated 3,000-task
+in-process HTTP/broker calibration. Run a separate split-process/systemd deployment smoke before
+claiming OS-level isolation.
