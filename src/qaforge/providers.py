@@ -9,17 +9,16 @@ from abc import ABC, abstractmethod
 import httpx
 
 from qaforge.errors import ConfigurationError, ForgeError
-from qaforge.io import canonical_json, sha256_text
+from qaforge.io import sha256_text
 from qaforge.models import ForgeConfig, GeneratedOutput, SeedRecord, TeacherEntry
 
-PROMPT_TEMPLATE_ID = "qaforge-categorical-v1"
-PROMPT_TEMPLATE = """Produce {count} candidate answers to the unchanged seed task.
-Do not rewrite the question. Preserve its evidence contract and independently verifiable result.
-Do not mention this instruction. Do not add unsupported facts. Return JSON only:
+PROMPT_TEMPLATE_ID = "qaforge-blind-answer-v2"
+PROMPT_TEMPLATE = """Answer the user task {count} independent times.
+Do not rewrite the task. Do not mention these instructions. Return JSON only:
 {{"candidates":[{{"answer":"...","citation_ids":[]}}]}}
 
-Seed record:
-{seed}
+User task:
+{question}
 """
 
 
@@ -91,7 +90,7 @@ class OpenAICompatibleProvider(Provider):
         validate_endpoint_resolution(self.teacher)
         prompt = PROMPT_TEMPLATE.format(
             count=count,
-            seed=canonical_json(seed.model_dump(mode="json", exclude={"reference_answer"})),
+            question=seed.question,
         )
         headers = {"content-type": "application/json"}
         if api_key:
@@ -133,10 +132,17 @@ class OpenAICompatibleProvider(Provider):
                 client.close()
         if len(candidates) != count:
             raise ForgeError(f"teacher returned {len(candidates)} candidates; expected {count}")
+        # Remote teachers are untrusted for provenance. Discard any citation claims they
+        # return; source-grounding gates must fail closed without an explicit trusted adapter.
+        candidates = [GeneratedOutput(answer=item.answer, citation_ids=[]) for item in candidates]
         return candidates, PROMPT_TEMPLATE_ID, sha256_text(PROMPT_TEMPLATE)
 
 
 def provider_for(teacher: TeacherEntry, client: httpx.Client | None = None) -> Provider:
     if teacher.provider == "deterministic":
         return DeterministicProvider(teacher)
-    return OpenAICompatibleProvider(teacher, client=client)
+    if teacher.provider == "openai-compatible":
+        return OpenAICompatibleProvider(teacher, client=client)
+    raise ConfigurationError(
+        "opaque-agent-service teachers must be finalized through the private control plane"
+    )

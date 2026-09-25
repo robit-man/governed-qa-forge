@@ -30,7 +30,9 @@ endpoints must be public HTTPS URLs without userinfo; private endpoints require 
 and cannot receive ambient credentials. Host resolution is checked immediately before access.
 
 The client calls `POST {base_url}/chat/completions` and requests bounded strict JSON containing
-answers only. The compiler, not the teacher, wraps the unchanged seed question with a recorded,
+answers only. The request includes only the user question: it excludes the seed ID, lineage,
+source IDs, dimensions, reference answer, and verifier contract. The compiler, not the teacher,
+wraps the unchanged seed question with a recorded,
 allowlisted meaning-preserving transform. This makes the seed verifier relevant to the generated
 candidate and prevents a teacher from silently replacing the task while reusing its expected
 answer. Domain-specific question evolution belongs in a provider extension with an independent
@@ -40,6 +42,14 @@ Local vLLM, llama.cpp, and Ollama-compatible gateways can be used when they expo
 chat-completions contract and `allow_private_endpoint` is explicitly enabled. Local mode rejects
 ambient bearer credentials. This project does not start or reserve those services. Follow the host
 GPU broker policy before starting CUDA workloads.
+
+## Opaque agent-service provider
+
+`opaque-agent-service` is a registry provider used only by the private service finalizer. Direct
+`qaforge generate` calls reject it so an operator cannot accidentally bypass task collection. See
+[the opaque service contract](opaque-service.md). Workers never receive private citation/source
+IDs. Their citation claims are discarded rather than promoted into provenance, so citation-required
+candidates fail closed unless a separately trusted grounding adapter verifies them.
 
 ## Adding a provider
 

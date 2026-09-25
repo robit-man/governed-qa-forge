@@ -23,6 +23,11 @@ release license must appear in each referenced source compatibility list.
 Reviewer entries provide an operator-approved identity and category scope. Every review decision
 is bound to the candidate content digest and must resolve to an approved reviewer.
 
+Teacher `provider` values are `deterministic`, `openai-compatible`, or
+`opaque-agent-service`. The last value is finalized only by the private service control plane;
+direct generation fails closed. Worker tasks are intentionally not seed records and expose none of
+the fields below except the transformed question.
+
 ## Seed records
 
 Each JSONL seed requires:

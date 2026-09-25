@@ -25,7 +25,7 @@ from qaforge.models import (
     RunStage,
     RunState,
 )
-from qaforge.providers import provider_for
+from qaforge.providers import Provider, provider_for
 from qaforge.selection import select_candidates
 from qaforge.splitter import assign_split
 from qaforge.transforms import transform_ids, transform_question
@@ -86,6 +86,7 @@ def generate_run(
     run_id: str,
     provider_id: str | None = None,
     client: httpx.Client | None = None,
+    provider_instance: Provider | None = None,
 ) -> RunState:
     report = workspace.doctor(provider_id)
     if not report.passed:
@@ -99,7 +100,9 @@ def generate_run(
 
     config = workspace.config()
     teacher = workspace.teacher(provider_id or config.generation.provider_id)
-    provider = provider_for(teacher, client=client)
+    if provider_instance is not None and provider_instance.teacher.teacher_id != teacher.teacher_id:
+        raise ConfigurationError("injected provider teacher does not match the selected teacher")
+    provider = provider_instance or provider_for(teacher, client=client)
     seeds = workspace.seeds()
     created_at = utc_now()
     raw: list[CandidateRecord] = []

@@ -10,6 +10,10 @@
 6. Add protected evaluations to the benchmark registry.
 7. Run `qaforge doctor PATH` until every check passes.
 
+For resident agent workers, deploy the separate worker and control processes described in
+[the opaque service guide](opaque-service.md). Keep the control bind private and back up the SQLite
+broker before maintenance. Expired worker leases return to the queue automatically after restart.
+
 ## Generation and review
 
 ```bash
@@ -37,3 +41,13 @@ rewritten bundle. `--allow-unanchored` is reserved for disposable local demonstr
 ## Fine-tuning handoff
 
 Copy the entire release directory into the downstream experiment’s immutable input area. Record the release manifest SHA-256 and repository commit in the training run. Never hand off split JSONL without its manifest and evidence bundle.
+
+## Calibration pilot
+
+`qaforge calibration-pilot pilot-workspace --size 1000` is a technical service and gate
+calibration. It must report 3,000 submitted/raw candidates, 1,000 selected lineages, and stage
+`awaiting_review`. Do not call `review-all` unless an authorized reviewer actually inspected every
+packet. A successful deterministic pilot is evidence that the separate HTTP application contracts,
+opaque payload projection, broker, and gates operate in-process; it does not exercise split Unix
+processes, TCP listeners, or systemd identities, and it is not
+evidence of production model-answer quality.

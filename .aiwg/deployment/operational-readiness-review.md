@@ -1,193 +1,84 @@
-# Operational Readiness Review — Governed QA Forge 0.1.0
+# Operational Readiness Review — Opaque Agent Service
 
-**Reviewed:** 2026-09-25T13:03:08-07:00
-**Release candidate:** uncommitted `feat/end-to-end-governed-qa-forge` worktree
-**Repository:** `https://github.com/robit-man/governed-qa-forge`
+**Reviewed:** 2026-09-25
+
+**Candidate:** uncommitted `feat/opaque-agent-service-pilot` worktree over `50b0cf8`
+
 **Local technical gate:** **GO TO PR**
-**Public release gate:** **NO-GO**
-**Production corpus gate:** **NO-GO — pilot not executed**
+
+**Installed-service gate:** **CONDITIONAL — deployment smoke pending**
+
+**Corpus-use gate:** **HOLD — independent review pending**
 
 ## Decision statement
 
-The final local candidate is technically ready to be committed and submitted for review. Static
-quality, tests, coverage, dependency audit, security review, source and installed-wheel demos,
-external-anchor verification, package hygiene, public-tree hygiene, research fixity, and CLI/docs
-checks all pass.
+The service extension is locally ready for immutable pull-request review. It exposes a minimal,
+feedback-free worker API and a separately authenticated control API; seals source inputs before
+collection; sends only transformed question text to workers; rejects exact private identifiers;
+and routes completed answers back through the existing validation, verification, decontamination,
+selection, review, and release controls.
 
-It is not ready to be declared a public 0.1.0 release because no immutable candidate commit, pull
-request, or hosted CI result exists; `main` is unprotected; and the public default branch does not
-yet contain the implementation. It is also not ready to be described as operationally proven for
-production corpus generation because only the bounded deterministic fixture has run.
+The technical 1,000-record calibration passed, but it is not a production dataset or an OS-level
+deployment proof. Its selected records remain at `awaiting_review`, and no release exists.
 
 ## Readiness dashboard
 
 | Domain | Status | Evidence |
 |---|---|---|
-| Requirements | PASS locally | FR-001..FR-014 and NFR-001..NFR-008 mapped to executed/inspected evidence |
-| Formatting/lint/types | PASS | Ruff and strict mypy clean |
-| Automated tests | PASS locally | 39/39 on Python 3.11/3.12/3.13; 87.73% statements; 72.61% branches; 84.86% combined |
-| Security | PASS with documented residual risks | all QAF-SEC-001..011 closed; 0 open findings |
-| Dependencies | PASS | locked sync and `pip-audit` clean |
-| Offline demo | PASS | 24 generated, 8 selected/released, full evidence bundle verified |
-| Release integrity | PASS | sealed run/review data, release-time rechecks, mandatory external anchor |
-| Coverage governance | PASS | all eight dimensions and their configured floors appear in the release manifest |
-| Packaging | PASS | final wheel/sdist clean; Python 3.11 installed-wheel journey succeeds |
-| Research boundary | PASS | 18/18 local PDF hashes valid; public index retained; payloads/text excluded |
-| Public-tree hygiene | PASS locally | gitleaks clean, no private payload paths, no broken Markdown links |
-| Repository visibility | PASS | GitHub reports PUBLIC, active, default branch `main` |
-| Immutable candidate | **FAIL** | application candidate is not committed |
-| Pull request / hosted CI | **FAIL** | zero PRs and zero workflow runs for the candidate |
-| Branch governance | **FAIL** | GitHub reports `main` is not protected |
-| Public implementation | **FAIL** | remote `main` remains at research-bootstrap commit `dbd3182` |
-| Production calibration | NOT DEMONSTRATED | no authorized 500–1,000-row pilot or target-scale profile |
-| CUDA policy | Not applicable | no CUDA container, service, or workload was started |
+| Requirements | PASS locally | FR-001..019 and NFR-001..013 mapped in the current regression report |
+| Format/lint/types | PASS | Ruff and strict mypy clean |
+| Automated tests | PASS | 49/49; 83.08% combined coverage |
+| Dependencies/package | PASS | clean dependency audit; wheel/sdist include deployment assets |
+| HTTP opacity | PASS | minimal lease, answer-only submission, no reward feedback, no worker OpenAPI |
+| Input integrity | PASS | collection-time hashes, task-binding recheck, post-generation manifest match |
+| Citation integrity | PASS | untrusted provider citation claims are discarded and citation-required work fails closed |
+| Queue consistency | PASS | atomic random lease, digest-only one-time credential, exactly-once response, restart reconciliation |
+| Resource boundaries | PASS locally | 64 KiB request cap, 16,384-character projected-question cap, 128-request server concurrency cap |
+| Systemd design | PASS-I | separate accounts/env files, control-only corpus access, workspace-local shared broker, hardening directives |
+| Installed systemd smoke | PENDING | no daemon was installed or started on this development host |
+| 1,000-record calibration | PASS TECHNICAL | 3,000 tasks, 1,000 unique selected lineages, all deterministic gates pass |
+| Independent record review | HOLD | no review decisions exist |
+| Production model quality | NOT DEMONSTRATED | deterministic teacher/solver only; no live open-ended model teacher |
 
-## Operational model
+## Operating boundary
 
-Governed QA Forge is a local CLI/package rather than a hosted service. Deployment consists of
-publishing reviewed source/package artifacts and handing immutable dataset release directories to
-fine-tuning runs. There is no database migration, long-running daemon, network listener, or CUDA
-deployment in the base product.
+The worker and control apps are separate processes with independent bearer tokens. The worker sees
+only an opaque task ID, one-time lease token, expiry, and a single user message. It receives no
+source, seed, lineage, taxonomy, reference answer, verifier, score, benchmark, selection, or review
+fields. Submission success is only `{"status":"recorded"}`.
 
-The operating sequence is:
+The documented deployment uses `qaforge-agent` and `qaforge-control` accounts. Corpus inputs are
+control-only; `.service/service.sqlite3` is shared for queue coordination. Therefore the opacity
+boundary is the HTTP caller, not arbitrary code execution as `qaforge-agent`. Deploy a minimal
+external broker or RPC boundary if worker-service compromise must be contained.
 
-```text
-authorized registries + reviewed seeds
-  -> deterministic lineage split
-  -> bounded provider candidates
-  -> validation / independent verification / decontamination
-  -> coverage-aware selection
-  -> digest-bound authorized review
-  -> release-time revalidation
-  -> immutable evidence bundle + externally retained anchor
-```
+## Calibration result
 
-The built-in remote provider returns answers only. Questions remain bound to human-reviewed seeds
-through a small allowlist of compiler-owned semantic-preserving transforms. This is a deliberate
-alpha safety boundary and is accurately documented. Arbitrary model-driven question evolution
-requires an extension with an independent solver, pinned-source entailment checker, or calibrated
-rubric; it is not silently implied by the base implementation.
+The definitive runtime workspace at `/srv/question_stack/pilot-workspace` is ignored by Git. It
+contains 3,000 raw/evaluated records and 1,000 selected records across 10 balanced categories. All
+selected lineages are unique; splits are 910/48/42; all mandatory deterministic gates pass. The
+run has neither review decisions nor release artifacts. Hashes are retained in the governed
+calibration evidence file.
 
-## Demonstrated operating evidence
-
-The final source and wheel flows generate a release containing:
-
-- `train.jsonl`, `validation.jsonl`, and `test.jsonl`;
-- `manifest.json` and a sanitized `generation-run-manifest.json`;
-- `DATASHEET.md`, Croissant JSON-LD, and W3C PROV JSON-LD;
-- a rejection ledger and `SHA256SUMS`.
-
-The final fixture run produced 24 raw candidates from eight seeds, selected and reviewed eight,
-and released seven train, zero validation, and one test row. The empty validation file is valid for
-this tiny deterministic fixture; the manifest records it with the SHA-256 of an empty file. The
-500-row production scaffold is intentionally deny-by-default and must be populated with sufficient
-authorized seed lineages before it can meet its release target.
-
-Normal verification failed without an external digest, failed with a wrong digest, and passed with
-the independently computed digest. The verifier checked nine evidence files and all eight records.
-Tamper, unsafe checksum path, sealed-review drift, protected-benchmark insertion, and undersized
-approval paths fail closed.
-
-## Package and public-data boundary
-
-Final local build digests:
-
-```text
-1b0f72d00721f4775a6461a6ba483f7785bd2bfeeab8f8af9f7500a6d1e70a04  governed_qa_forge-0.1.0-py3-none-any.whl
-943d22523bc405e84998b4435366f79a536918faff5a8d976add012d19684ab9  governed_qa_forge-0.1.0.tar.gz
-```
-
-These are validation artifacts only until rebuilt from a commit. Archive inspection found no AIWG
-workspace, provider state, `.env`, acquired PDF, extracted source text, generated run/release,
-private corpus, or host path. Git ignore checks preserve the public research source register while
-excluding all acquired source payloads and full text. The exact proposed public tree passed the
-checksum-verified gitleaks scan.
-
-## Security and residual risk
-
-The final security decision is **PASS WITH DOCUMENTED RESIDUAL RISKS**. All previous findings are
-closed for the declared local-tool trust model. The retained limitations are:
-
-- the local reviewer registry does not cryptographically authenticate a human;
-- regex-based secret/PII screening is defense in depth, not proof of absence;
-- DNS checks should be paired with production network egress controls;
-- citation contracts prove identifier/token presence, not factual source entailment;
-- arbitrary generated code is not executed or verified by the base product.
-
-These limitations are stated in `SECURITY.md`, the threat model, governance/provider docs, and the
-security review. They do not block public alpha publication when those claims remain scoped.
-
-## Exact blockers
-
-### ORR-001 — Candidate has no immutable Git identity
-
-The audited implementation is untracked or modified while `HEAD` equals `origin/main` at
-`dbd3182`. A local working tree cannot be the provenance anchor for a public release.
-
-**Exit:** commit the exact reviewed candidate, rerun/build from that commit, and record the commit
-and artifact hashes.
-
-### ORR-002 — Required review and hosted validation are absent
-
-The AIWG delivery policy requires a pull request and green CI. GitHub reports no PR and no Actions
-run. Local results cannot substitute for the configured hosted Python-version and secret-scan gate.
-
-**Exit:** push the feature branch, open the PR, and obtain green Python 3.11/3.12/3.13, build,
-anchored-demo, dependency-audit, and gitleaks jobs.
-
-### ORR-003 — Default branch protection is absent
-
-The GitHub API returns `Branch not protected` for `main`, contrary to the release plan.
-
-**Exit:** require pull-request review and the relevant CI status checks on `main`; prohibit force
-push and deletion according to repository policy.
-
-### ORR-004 — The public branch has not received the product
-
-The public repository is correctly visible, but its only remote branch remains the research
-bootstrap. No public consumer can check out the reviewed implementation yet.
-
-**Exit:** merge the green PR without force-push, then re-audit public `main`, its release files,
-and exclusions.
-
-### ORR-005 — Target-scale production behavior is unproven
-
-No authorized real provider, 500–1,000 accepted-row calibration, retry/rate-limit test, interrupted
-run recovery, or several-thousand-row throughput/resource profile has been observed.
-
-**Exit for production claims:** complete the documented calibration milestone with retained
-quality, diversity, review, contamination, throughput, cost, failure, and release evidence. This
-does not block a clearly labeled alpha source release.
+The command exercised two application instances through in-process HTTP clients. A deployment
+operator must still smoke-test the wheel-installed unit locations, filesystem ownership, both TCP
+listeners, restart behavior, TLS/ingress, and external-agent identity before production service.
 
 ## Deployment and rollback
 
-For source/package publication, deploy only from the reviewed merge commit. Record the Git commit,
-wheel/sdist hashes, workflow URL, and security/test report versions. Do not publish the local
-uncommitted build hashes above as release provenance.
+1. Install only a reviewed wheel built by green hosted CI.
+2. Generate independent tokens in the two mode-0600 env files; placeholder values fail startup.
+3. Keep the control plane loopback-only and expose the worker through authenticated, rate-limited
+   TLS ingress when remote access is required.
+4. Run the documented unit/permission smoke and a disposable collection before admitting real
+   work.
+5. On failure, stop both units, retain the workspace and broker for audit, quarantine any affected
+   run, and deploy a new version. Do not overwrite run or release artifacts.
 
-For dataset handoff, copy the complete release directory, publish or retain the printed root
-anchor in a separate trusted system, and record the source commit in the downstream training run.
-Never hand off split JSONL without its evidence bundle.
+## Exit criteria
 
-Rollback is non-destructive:
-
-1. withdraw an affected package/tag or mark it superseded;
-2. retain the failed source and dataset artifacts for audit;
-3. quarantine affected dataset releases rather than overwriting them;
-4. correct the defect and publish a new semantic version and dataset release directory;
-5. notify downstream fine-tuning operators with the affected commit, artifact hashes, and lineage.
-
-## Final go criteria
-
-Public-release approval requires one immutable commit for which all of the following are true:
-
-1. local and hosted format, lint, strict typing, tests, coverage, dependency, build, and secret
-   gates pass;
-2. the installed wheel completes the offline demo and anchored verification;
-3. wheel, sdist, exact Git tree, and public `main` pass the private-material exclusions;
-4. `main` protection enforces PR review and required status checks;
-5. the green feature PR is merged without force-push and the public repository is revalidated;
-6. release notes retain the documented alpha scope and do not claim an executed production pilot.
-
-The candidate may proceed to commit and PR now. It must not be labeled or published as the final
-0.1.0 release until criteria 1–5 are evidenced. The current overall decision is **NO-GO**.
+- Commit and push the exact candidate through the PR-required workflow.
+- Obtain green hosted matrix, package, dependency, and secret-scanning checks.
+- Perform an installed split-process/systemd smoke in the target environment.
+- Complete authorized independent review of the calibration before any fine-tuning use.
+- Run a separately governed open-ended pilot before claiming production teacher quality.
