@@ -27,9 +27,14 @@ demo-workspace/
 
 # AIWG runtime/provider state not needed by library users
 .aiwg/.index/
+.aiwg/.milestones.json
+.aiwg/activity.log
+.aiwg/cli-extensions.json
+.aiwg/frameworks/
 .aiwg/receipts/
 .aiwg/archive/
-.aiwg/research/sources/
+.aiwg/research/sources/*
+!.aiwg/research/sources/INDEX.md
 .aiwg/research/working/
 
 # Local editor and OS state
