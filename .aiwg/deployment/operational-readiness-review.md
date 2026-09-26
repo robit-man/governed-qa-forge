@@ -29,7 +29,7 @@ deployment proof. Its selected records remain at `awaiting_review`, and no relea
 | Format/lint/types | PASS | Ruff and strict mypy clean |
 | Automated tests | PASS | 49/49; 83.08% combined coverage |
 | Dependencies/package | PASS | clean dependency audit; wheel/sdist include deployment assets |
-| HTTP opacity | PASS | minimal lease, answer-only submission, no reward feedback, no worker OpenAPI |
+| HTTP opacity | PASS | minimal lease, structured derivation/final-answer submission, no reward feedback, no worker OpenAPI |
 | Input integrity | PASS | collection-time hashes, task-binding recheck, post-generation manifest match |
 | Citation integrity | PASS | untrusted provider citation claims are discarded and citation-required work fails closed |
 | Queue consistency | PASS | atomic random lease, digest-only one-time credential, exactly-once response, restart reconciliation |

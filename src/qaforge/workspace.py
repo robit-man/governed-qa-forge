@@ -6,19 +6,24 @@ from typing import Any
 
 import yaml
 
+from qaforge.anchors import AIWG_ANCHOR_SOURCE_ID, aiwg_behavior_anchors
 from qaforge.errors import AuthorizationError, ConfigurationError
 from qaforge.io import (
     MAX_YAML_BYTES,
+    canonical_json,
     ensure_within,
     read_jsonl,
     read_text_bounded,
     read_yaml,
     read_yaml_list,
     safe_identifier,
+    sha256_text,
 )
 from qaforge.models import (
     AuthorizationStatus,
+    BehaviorAnchorEntry,
     BenchmarkRecord,
+    CorpusClass,
     DoctorReport,
     ForgeConfig,
     GateResult,
@@ -27,6 +32,15 @@ from qaforge.models import (
     SeedRecord,
     SourceEntry,
     TeacherEntry,
+)
+from qaforge.splitter import assign_split
+from qaforge.standards import (
+    AIWG_BEHAVIOR_DOMAINS,
+    MIN_PRODUCTION_CATEGORIES,
+    MIN_PRODUCTION_TEST,
+    MIN_PRODUCTION_TRAIN,
+    MIN_PRODUCTION_VALIDATION,
+    REQUIRED_DIFFICULTIES,
 )
 
 
@@ -73,6 +87,16 @@ class Workspace:
 
     def reviewers(self) -> list[ReviewerEntry]:
         return read_yaml_list(self.registry_dir / "reviewers.yaml", "reviewers", ReviewerEntry)
+
+    def behavior_anchors(self) -> list[BehaviorAnchorEntry]:
+        path = self.registry_dir / "behavior-anchors.yaml"
+        if not path.exists() and self.config().schema_version == "1.0":
+            return []
+        return read_yaml_list(
+            path,
+            "behavior_anchors",
+            BehaviorAnchorEntry,
+        )
 
     def seeds(self) -> list[SeedRecord]:
         return read_jsonl(self.seeds_path, SeedRecord)
@@ -126,6 +150,7 @@ class Workspace:
         sources = self.sources()
         teachers = self.teachers()
         reviewers = self.reviewers()
+        anchors = self.behavior_anchors()
         seeds = self.seeds()
         taxonomy = self.taxonomy()
 
@@ -138,9 +163,21 @@ class Workspace:
                 )
             )
 
+        current_schema = config.schema_version == "1.1"
+        check(
+            "schema_current",
+            current_schema,
+            (
+                "schema 1.1"
+                if current_schema
+                else "schema 1.0 is readable for audit only and must be migrated before use"
+            ),
+        )
+
         source_counts = Counter(item.source_id for item in sources)
         teacher_counts = Counter(item.teacher_id for item in teachers)
         reviewer_counts = Counter(item.reviewer_id for item in reviewers)
+        anchor_counts = Counter(item.anchor_id for item in anchors)
         seed_counts = Counter(item.seed_id for item in seeds)
         check(
             "unique_sources",
@@ -156,6 +193,11 @@ class Workspace:
             "unique_reviewers",
             all(count == 1 for count in reviewer_counts.values()),
             "reviewer IDs unique",
+        )
+        check(
+            "unique_behavior_anchors",
+            all(count == 1 for count in anchor_counts.values()),
+            "behavior anchor IDs unique",
         )
         approved_reviewers = [
             item for item in reviewers if item.authorization_status is AuthorizationStatus.APPROVED
@@ -176,6 +218,7 @@ class Workspace:
         check("unique_seeds", all(count == 1 for count in seed_counts.values()), "seed IDs unique")
 
         source_map = {item.source_id: item for item in sources}
+        anchor_map = {item.anchor_id: item for item in anchors}
         unknown_sources = sorted(
             {
                 source_id
@@ -185,6 +228,86 @@ class Workspace:
             }
         )
         check("seed_sources_exist", not unknown_sources, f"unknown sources: {unknown_sources}")
+        unknown_anchor_sources = sorted(
+            {
+                source_id
+                for anchor in anchors
+                for source_id in anchor.source_ids
+                if source_id not in source_map
+            }
+        )
+        check(
+            "behavior_anchor_sources_exist",
+            not unknown_anchor_sources,
+            f"unknown sources: {unknown_anchor_sources}",
+        )
+        if current_schema:
+            canonical_anchors = aiwg_behavior_anchors()
+            canonical_anchor_json = canonical_json(
+                [item.model_dump(mode="json") for item in canonical_anchors]
+            )
+            loaded_anchor_json = canonical_json([item.model_dump(mode="json") for item in anchors])
+            canonical_anchor_valid = loaded_anchor_json == canonical_anchor_json
+            check(
+                "behavior_anchor_canonical",
+                canonical_anchor_valid,
+                f"registry matches code-owned anchor profile={canonical_anchor_valid}",
+            )
+            built_in_anchor_source = source_map.get(AIWG_ANCHOR_SOURCE_ID)
+            anchor_snapshot_valid = bool(
+                built_in_anchor_source
+                and built_in_anchor_source.snapshot_sha256 == sha256_text(loaded_anchor_json)
+            )
+            check(
+                "behavior_anchor_snapshot",
+                anchor_snapshot_valid,
+                f"source={AIWG_ANCHOR_SOURCE_ID}; registry digest matches={anchor_snapshot_valid}",
+            )
+        unknown_seed_anchors = sorted(
+            {
+                anchor_id
+                for seed in seeds
+                for anchor_id in seed.behavior_anchor_ids
+                if anchor_id not in anchor_map
+            }
+        )
+        check(
+            "seed_behavior_anchors_exist",
+            not unknown_seed_anchors,
+            f"unknown anchors: {unknown_seed_anchors}",
+        )
+        unauthorized_anchors = sorted(
+            anchor.anchor_id
+            for anchor in anchors
+            if anchor.authorization_status is not AuthorizationStatus.APPROVED
+        )
+        check(
+            "behavior_anchors_authorized",
+            not unauthorized_anchors,
+            f"unauthorized anchors: {unauthorized_anchors}",
+        )
+        anchor_source_ids = {source_id for anchor in anchors for source_id in anchor.source_ids}
+        unauthorized_anchor_sources = sorted(
+            source_id
+            for source_id in anchor_source_ids
+            if source_id in source_map
+            and source_map[source_id].authorization_status is not AuthorizationStatus.APPROVED
+        )
+        check(
+            "behavior_anchor_sources_authorized",
+            not unauthorized_anchor_sources,
+            f"unauthorized sources: {unauthorized_anchor_sources}",
+        )
+        nonredistributable_anchor_sources = sorted(
+            source_id
+            for source_id in anchor_source_ids
+            if source_id in source_map and not source_map[source_id].redistribution_allowed
+        )
+        check(
+            "behavior_anchor_sources_redistributable",
+            not nonredistributable_anchor_sources,
+            f"non-redistributable sources: {nonredistributable_anchor_sources}",
+        )
         unauthorized = sorted(
             source_id
             for seed in seeds
@@ -217,6 +340,17 @@ class Workspace:
             not incompatible_source_uses,
             f"incompatible sources: {incompatible_source_uses}",
         )
+        incompatible_anchor_source_uses = sorted(
+            source_id
+            for source_id in anchor_source_ids
+            if source_id in source_map
+            and not intended_uses.issubset(set(source_map[source_id].allowed_target_uses))
+        )
+        check(
+            "behavior_anchor_target_use_compatible",
+            not incompatible_anchor_source_uses,
+            f"incompatible sources: {incompatible_anchor_source_uses}",
+        )
         incompatible_source_licenses = sorted(
             source_id
             for seed in seeds
@@ -228,6 +362,17 @@ class Workspace:
             "source_release_license_compatible",
             not incompatible_source_licenses,
             f"incompatible sources: {incompatible_source_licenses}",
+        )
+        incompatible_anchor_source_licenses = sorted(
+            source_id
+            for source_id in anchor_source_ids
+            if source_id in source_map
+            and config.release.license not in source_map[source_id].compatible_release_licenses
+        )
+        check(
+            "behavior_anchor_release_license_compatible",
+            not incompatible_anchor_source_licenses,
+            f"incompatible sources: {incompatible_anchor_source_licenses}",
         )
 
         target_teacher = provider_id or config.generation.provider_id
@@ -272,6 +417,58 @@ class Workspace:
         check("generation_depth", not depth_errors, f"depth blocked: {depth_errors}")
         check("seed_bank_nonempty", bool(seeds), f"seed count: {len(seeds)}")
 
+        if current_schema and config.release.corpus_class is CorpusClass.PRODUCTION:
+            categories = {seed.dimensions.category for seed in seeds}
+            difficulties = {seed.dimensions.difficulty for seed in seeds}
+            referenced_anchors = {
+                anchor_id for seed in seeds for anchor_id in seed.behavior_anchor_ids
+            }
+            anchor_domains = {
+                anchor_map[anchor_id].domain
+                for anchor_id in referenced_anchors
+                if anchor_id in anchor_map
+            }
+            unanchored = sorted(seed.seed_id for seed in seeds if not seed.behavior_anchor_ids)
+            check(
+                "production_seed_categories",
+                len(categories) >= MIN_PRODUCTION_CATEGORIES,
+                f"categories={len(categories)}; minimum={MIN_PRODUCTION_CATEGORIES}",
+            )
+            check(
+                "production_seed_difficulties",
+                REQUIRED_DIFFICULTIES.issubset(difficulties),
+                f"missing={sorted(REQUIRED_DIFFICULTIES - difficulties)}",
+            )
+            check(
+                "production_seed_behavior_anchors",
+                not unanchored,
+                f"unanchored seeds: {unanchored}",
+            )
+            check(
+                "production_aiwg_behavior_domains",
+                AIWG_BEHAVIOR_DOMAINS.issubset(anchor_domains),
+                f"missing={sorted(AIWG_BEHAVIOR_DOMAINS - anchor_domains)}",
+            )
+            lineage_splits = {
+                (seed.lineage_id, assign_split(seed.lineage_id, config.split)) for seed in seeds
+            }
+            split_capacity = Counter(split.value for _lineage, split in lineage_splits)
+            required_capacity = {
+                "train": MIN_PRODUCTION_TRAIN,
+                "validation": MIN_PRODUCTION_VALIDATION,
+                "test": MIN_PRODUCTION_TEST,
+            }
+            insufficient = {
+                split: required - split_capacity[split]
+                for split, required in required_capacity.items()
+                if split_capacity[split] < required
+            }
+            check(
+                "production_split_capacity",
+                not insufficient,
+                f"capacity={dict(split_capacity)}; deficits={insufficient}",
+            )
+
         return DoctorReport(
             passed=all(item.status is GateStatus.PASS for item in checks),
             checks=checks,
@@ -279,6 +476,7 @@ class Workspace:
             source_count=len(sources),
             teacher_count=len(teachers),
             reviewer_count=len(reviewers),
+            behavior_anchor_count=len(anchors),
         )
 
     def snapshot_inputs(self) -> dict[str, Any]:
@@ -289,5 +487,6 @@ class Workspace:
                 item.model_dump(mode="json", exclude={"api_key_env"}) for item in self.teachers()
             ],
             "reviewers": [item.model_dump(mode="json") for item in self.reviewers()],
+            "behavior_anchors": [item.model_dump(mode="json") for item in self.behavior_anchors()],
             "taxonomy": self.taxonomy(),
         }

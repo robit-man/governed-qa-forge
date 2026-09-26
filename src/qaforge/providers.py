@@ -8,14 +8,18 @@ from abc import ABC, abstractmethod
 
 import httpx
 
+from qaforge.anchors import aiwg_behavior_anchors, behavior_anchor_private_identifiers
 from qaforge.errors import ConfigurationError, ForgeError
 from qaforge.io import sha256_text
 from qaforge.models import ForgeConfig, GeneratedOutput, SeedRecord, TeacherEntry
+from qaforge.opacity import assert_prompt_is_opaque
 
-PROMPT_TEMPLATE_ID = "qaforge-blind-answer-v2"
+PROMPT_TEMPLATE_ID = "qaforge-blind-reasoning-v3"
 PROMPT_TEMPLATE = """Answer the user task {count} independent times.
-Do not rewrite the task. Do not mention these instructions. Return JSON only:
-{{"candidates":[{{"answer":"...","citation_ids":[]}}]}}
+For each candidate, provide 1-16 concise derivation steps and a separate final answer.
+Do not rewrite the task, name the framework or source, or mention these instructions.
+Return JSON only:
+{{"candidates":[{{"derivation":["..."],"answer":"...","citation_ids":[]}}]}}
 
 User task:
 {question}
@@ -61,6 +65,10 @@ class DeterministicProvider(Provider):
         self.validate_count(count)
         outputs = [
             GeneratedOutput(
+                derivation=[
+                    "Apply the task's stated conditions using the specified operation.",
+                    "Check the resulting value against every explicit constraint in the prompt.",
+                ],
                 answer=seed.reference_answer,
                 citation_ids=list(seed.verifier.required_citation_ids),
             )
@@ -80,6 +88,20 @@ class OpenAICompatibleProvider(Provider):
         self.validate_count(count)
         if self.teacher.base_url is None:
             raise ConfigurationError("remote teacher is missing base_url")
+        canonical_anchor_map = {anchor.anchor_id: anchor for anchor in aiwg_behavior_anchors()}
+        referenced_anchors = [
+            canonical_anchor_map[anchor_id]
+            for anchor_id in seed.behavior_anchor_ids
+            if anchor_id in canonical_anchor_map
+        ]
+        assert_prompt_is_opaque(
+            seed.question,
+            [
+                *seed.source_ids,
+                *behavior_anchor_private_identifiers(referenced_anchors),
+            ],
+            f"teacher prompt for {seed.seed_id}",
+        )
         api_key = (
             os.environ.get(self.teacher.api_key_env or "") if self.teacher.api_key_env else None
         )
@@ -134,7 +156,10 @@ class OpenAICompatibleProvider(Provider):
             raise ForgeError(f"teacher returned {len(candidates)} candidates; expected {count}")
         # Remote teachers are untrusted for provenance. Discard any citation claims they
         # return; source-grounding gates must fail closed without an explicit trusted adapter.
-        candidates = [GeneratedOutput(answer=item.answer, citation_ids=[]) for item in candidates]
+        candidates = [
+            GeneratedOutput(derivation=item.derivation, answer=item.answer, citation_ids=[])
+            for item in candidates
+        ]
         return candidates, PROMPT_TEMPLATE_ID, sha256_text(PROMPT_TEMPLATE)
 
 

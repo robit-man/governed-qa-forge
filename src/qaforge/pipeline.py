@@ -7,6 +7,7 @@ import httpx
 
 from qaforge.dedup import decontaminate
 from qaforge.errors import ConfigurationError, GateError, ImmutableArtifactError
+from qaforge.formatting import training_content_sha256
 from qaforge.io import (
     canonical_json,
     ensure_within,
@@ -18,9 +19,13 @@ from qaforge.io import (
     write_jsonl,
 )
 from qaforge.models import (
+    BehaviorAnchorEntry,
     CandidateRecord,
+    CorpusClass,
     GateStatus,
+    ReviewAnchorContext,
     ReviewDecision,
+    ReviewPacket,
     ReviewState,
     RunStage,
     RunState,
@@ -57,6 +62,9 @@ def _input_paths(workspace: Workspace) -> dict[str, Path]:
         "taxonomy": workspace.registry_dir / "taxonomy.yaml",
         "seeds": workspace.seeds_path,
     }
+    behavior_anchor_path = workspace.registry_dir / "behavior-anchors.yaml"
+    if behavior_anchor_path.exists():
+        paths["behavior_anchors"] = behavior_anchor_path
     if workspace.benchmarks_path.exists():
         paths["protected_benchmarks"] = workspace.benchmarks_path
     return paths
@@ -116,9 +124,7 @@ def generate_run(
         for index, output in enumerate(outputs):
             transform_id = transformations[index]
             question = transform_question(seed.question, transform_id)
-            content_hash = sha256_text(
-                canonical_json({"question": question, "answer": output.answer})
-            )
+            content_hash = training_content_sha256(question, output.derivation, output.answer)
             record_id = (
                 "qa_"
                 + sha256_text(
@@ -139,6 +145,7 @@ def generate_run(
                     lineage_id=seed.lineage_id,
                     split=split,
                     question=question,
+                    derivation=output.derivation,
                     answer=output.answer,
                     seed_question=seed.question,
                     question_transform_id=transform_id,
@@ -146,6 +153,7 @@ def generate_run(
                     verifier=seed.verifier,
                     citation_ids=output.citation_ids,
                     source_ids=seed.source_ids,
+                    behavior_anchor_ids=seed.behavior_anchor_ids,
                     parent_record_ids=[seed.seed_id],
                     generation_depth=seed.generation_depth + 1,
                     generation_run_id=run_id,
@@ -253,46 +261,112 @@ def export_review(workspace: Workspace, run_id: str, destination: Path) -> Path:
     destination = ensure_within(workspace.root, destination)
     assert_run_artifacts(workspace, run_id)
     selected = read_jsonl(workspace.run_dir(run_id) / "selected.jsonl", CandidateRecord)
-    packets = [
-        {
-            "record_id": item.record_id,
-            "candidate_sha256": item.content_sha256,
-            "question": item.question,
-            "answer": item.answer,
-            "category": item.dimensions.category,
-            "decision": ReviewState.PENDING.value,
-            "reviewer": "",
-            "rationale": "",
-            "reviewed_at": None,
-        }
-        for item in selected
-    ]
+    anchor_map = {item.anchor_id: item for item in workspace.behavior_anchors()}
+    packets = [_review_packet(item, anchor_map) for item in selected]
     write_jsonl(destination, packets)
     return destination
+
+
+def _review_packet(
+    item: CandidateRecord,
+    anchor_map: dict[str, BehaviorAnchorEntry],
+    decision: ReviewDecision | None = None,
+) -> ReviewPacket:
+    contexts: list[ReviewAnchorContext] = []
+    for anchor_id in item.behavior_anchor_ids:
+        anchor = anchor_map.get(anchor_id)
+        if anchor is None:
+            raise GateError(f"candidate references unknown behavior anchor: {anchor_id}")
+        contexts.append(
+            ReviewAnchorContext.model_validate(
+                anchor.model_dump(
+                    include={
+                        "anchor_id",
+                        "domain",
+                        "principle",
+                        "source_ref",
+                        "source_sha256",
+                    }
+                )
+            )
+        )
+    values = decision.model_dump(mode="json") if decision else {}
+    return ReviewPacket(
+        record_id=item.record_id,
+        candidate_sha256=item.content_sha256,
+        question=item.question,
+        derivation=item.derivation,
+        final_answer=item.answer,
+        category=item.dimensions.category,
+        behavior_anchors=contexts,
+        **{
+            key: value
+            for key, value in values.items()
+            if key not in {"record_id", "candidate_sha256"}
+        },
+    )
 
 
 def import_reviews(workspace: Workspace, run_id: str, review_path: Path) -> RunState:
     assert_run_artifacts(workspace, run_id)
     selected = read_jsonl(workspace.run_dir(run_id) / "selected.jsonl", CandidateRecord)
     selected_map = {item.record_id: item for item in selected}
+    anchor_map = {item.anchor_id: item for item in workspace.behavior_anchors()}
     decisions: dict[str, ReviewDecision] = {}
     try:
         lines = review_path.read_text(encoding="utf-8").splitlines()
         for line_number, line in enumerate(lines, 1):
             if not line.strip():
                 continue
-            decision = ReviewDecision.model_validate(json.loads(line))
-            if decision.record_id in decisions:
-                raise GateError(f"duplicate review decision: {decision.record_id}")
-            if decision.record_id not in selected_map:
-                raise GateError(f"review references unknown record: {decision.record_id}")
-            candidate = selected_map[decision.record_id]
-            if decision.candidate_sha256 != candidate.content_sha256:
-                raise GateError(f"review digest mismatch: {decision.record_id}")
+            packet = ReviewPacket.model_validate(json.loads(line))
+            if packet.record_id in decisions:
+                raise GateError(f"duplicate review decision: {packet.record_id}")
+            if packet.record_id not in selected_map:
+                raise GateError(f"review references unknown record: {packet.record_id}")
+            candidate = selected_map[packet.record_id]
+            expected_packet = _review_packet(candidate, anchor_map)
+            displayed_fields = (
+                "candidate_sha256",
+                "question",
+                "derivation",
+                "final_answer",
+                "category",
+                "behavior_anchors",
+            )
+            if any(
+                getattr(packet, field) != getattr(expected_packet, field)
+                for field in displayed_fields
+            ):
+                raise GateError(f"review packet content mismatch: {packet.record_id}")
+            decision = ReviewDecision.model_validate(
+                packet.model_dump(
+                    mode="json",
+                    include={
+                        "record_id",
+                        "candidate_sha256",
+                        "decision",
+                        "reviewer",
+                        "rationale",
+                        "derivation_verified",
+                        "behavior_alignment_verified",
+                        "reviewed_at",
+                    },
+                )
+            )
             if decision.decision is ReviewState.PENDING:
                 raise GateError(f"pending review at line {line_number}: {decision.record_id}")
             if not decision.reviewer.strip() or not decision.rationale.strip():
                 raise GateError(f"reviewer and rationale required: {decision.record_id}")
+            if (
+                decision.decision is ReviewState.APPROVED
+                and workspace.config().release.corpus_class is CorpusClass.PRODUCTION
+                and (not decision.derivation_verified or not decision.behavior_alignment_verified)
+            ):
+                raise GateError(
+                    "approved production record requires derivation and behavior-alignment "
+                    "verification: "
+                    f"{decision.record_id}"
+                )
             workspace.reviewer(decision.reviewer, candidate.dimensions.category)
             decisions[decision.record_id] = decision.model_copy(
                 update={"reviewed_at": decision.reviewed_at or utc_now()}
@@ -329,23 +403,51 @@ def approve_all(
     reviewer: str,
     rationale: str,
     acknowledged_manual_review: bool,
+    acknowledged_derivation_verification: bool = False,
+    acknowledged_behavior_alignment: bool = False,
 ) -> RunState:
     config = workspace.config()
-    if not config.demo_mode and not acknowledged_manual_review:
+    if (
+        config.release.corpus_class is not CorpusClass.TEST_FIXTURE
+        and not acknowledged_manual_review
+    ):
         raise GateError("bulk approval requires --acknowledge-manual-review")
+    if (
+        config.release.corpus_class is CorpusClass.PRODUCTION
+        and not acknowledged_derivation_verification
+    ):
+        raise GateError("production bulk approval requires --acknowledge-derivation-verification")
+    if (
+        config.release.corpus_class is CorpusClass.PRODUCTION
+        and not acknowledged_behavior_alignment
+    ):
+        raise GateError("production bulk approval requires --acknowledge-behavior-alignment")
     selected = read_jsonl(workspace.run_dir(run_id) / "selected.jsonl", CandidateRecord)
+    anchor_map = {item.anchor_id: item for item in workspace.behavior_anchors()}
     review_path = workspace.run_dir(run_id) / "review-decisions.jsonl"
     now = utc_now()
     write_jsonl(
         review_path,
         [
-            ReviewDecision(
-                record_id=item.record_id,
-                candidate_sha256=item.content_sha256,
-                decision=ReviewState.APPROVED,
-                reviewer=reviewer,
-                rationale=rationale,
-                reviewed_at=now,
+            _review_packet(
+                item,
+                anchor_map,
+                ReviewDecision(
+                    record_id=item.record_id,
+                    candidate_sha256=item.content_sha256,
+                    decision=ReviewState.APPROVED,
+                    reviewer=reviewer,
+                    rationale=rationale,
+                    derivation_verified=(
+                        acknowledged_derivation_verification
+                        or config.release.corpus_class is CorpusClass.TEST_FIXTURE
+                    ),
+                    behavior_alignment_verified=(
+                        acknowledged_behavior_alignment
+                        or config.release.corpus_class is CorpusClass.TEST_FIXTURE
+                    ),
+                    reviewed_at=now,
+                ),
             )
             for item in selected
         ],

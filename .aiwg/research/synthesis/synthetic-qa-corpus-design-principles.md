@@ -94,7 +94,10 @@ Train controlled adapters on 25%, 50%, and 100% subsets; quality-only versus qua
 
 ### Production release
 
-Scale to several thousand only after the pilot gates pass. Use a frozen, independently authored evaluation suite plus capability, safety, calibration, and anti-repetition slices. Compare against the unchanged base and the strongest adjacent-suite baseline.
+After pilot gates pass, scale to the fixed production floor of at least 20,000 train, 2,000
+validation, and 2,000 test records. Use a frozen, independently authored evaluation suite plus
+capability, safety, calibration, and anti-repetition slices. Compare against the unchanged base and
+the strongest adjacent-suite baseline.
 
 ## Important unresolved questions
 

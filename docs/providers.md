@@ -30,7 +30,8 @@ endpoints must be public HTTPS URLs without userinfo; private endpoints require 
 and cannot receive ambient credentials. Host resolution is checked immediately before access.
 
 The client calls `POST {base_url}/chat/completions` and requests bounded strict JSON containing
-answers only. The request includes only the user question: it excludes the seed ID, lineage,
+one to sixteen concise derivation steps plus a separate final answer. The request includes only the
+user question: it excludes the seed ID, lineage,
 source IDs, dimensions, reference answer, and verifier contract. The compiler, not the teacher,
 wraps the unchanged seed question with a recorded,
 allowlisted meaning-preserving transform. This makes the seed verifier relevant to the generated
@@ -53,4 +54,6 @@ candidates fail closed unless a separately trusted grounding adapter verifies th
 
 ## Adding a provider
 
-Implement the `Provider` interface and return `GeneratedOutput` objects plus a stable prompt-template ID and SHA-256. Provider-specific metadata must not weaken the common candidate schema or bypass authorization and release gates.
+Implement the `Provider` interface and return `GeneratedOutput` objects with `derivation`,
+`answer`, and `citation_ids`, plus a stable prompt-template ID and SHA-256. Provider-specific
+metadata must not weaken the common candidate schema or bypass authorization and release gates.

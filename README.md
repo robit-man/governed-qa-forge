@@ -6,13 +6,17 @@ It also provides a split-plane service for blind agent workers: the worker API r
 self-contained question and never sees sources, reference answers, verifier contracts, scores, or
 review outcomes. A private control API finalizes collected answers through the same governed gates.
 
-It is deliberately not a prompt-to-JSONL script. A row cannot enter a release unless its source and teacher are authorized, its family split is frozen, its answer passes an independent verifier, its overlap checks pass, and an explicit review decision exists.
+It is deliberately not a prompt-to-JSONL script. A row cannot enter a release unless its source,
+teacher, and behavior anchors are authorized; its family split is frozen; its final answer passes an
+independent verifier; its structured derivation is explicitly reviewed; its overlap checks pass;
+and an explicit review decision exists.
 
 ## What it produces
 
 Each release contains:
 
-- `train.jsonl`, `validation.jsonl`, and `test.jsonl` in chat-message format;
+- `train.jsonl`, `validation.jsonl`, and `test.jsonl` as messages-only conversational JSONL;
+- matching `*.metadata.jsonl` provenance sidecars that are not model input;
 - a manifest with counts, policies, input hashes, and per-file SHA-256 values;
 - a dataset card/datasheet;
 - [Croissant](https://docs.mlcommons.org/croissant/) JSON-LD metadata;
@@ -61,7 +65,8 @@ qaforge init corpus-workspace
 
 # Edit configuration, taxonomy, seed bank, and registries. In particular,
 # approve the exact provider/model, reviewer roster, source permissions,
-# and dated terms snapshot. Production scaffolds target a 500-row pilot.
+# and dated terms snapshot. Production scaffolds target 30,000 selected records so the
+# fixed per-split minimum has operational headroom.
 export QAFORGE_TEACHER_API_KEY='...'
 qaforge doctor corpus-workspace
 qaforge generate corpus-workspace --provider teacher-main
@@ -88,6 +93,15 @@ OpenAI-compatible endpoints—including compatible local servers—are configure
 - **Anchored evidence:** runs and releases cannot be silently overwritten, and release verification
   requires a separately retained root digest unless local demo mode is explicitly requested.
 - **Portable metadata:** datasheet, Croissant, PROV, rejection ledger, and file fixity ship together.
+- **One production minimum:** release is impossible below 20,000 train, 2,000 validation, and
+  2,000 test rows, ten categories, all three difficulty tiers, and all ten required latent AIWG
+  behavior domains.
+- **Latent behavior anchors:** scenario/decision/derivation examples enact AIWG-informed
+  requirements, evidence, provenance, security, verification, testing, architecture, operations,
+  context-boundary, and orchestration behaviors without naming the framework in training messages;
+  canonical source hashes and reviewer semantic-alignment attestations prevent tag-only coverage.
+- **No convergence by assertion:** every bundle includes a required three-seed, unchanged-base
+  comparison protocol; a release gate proves corpus eligibility, not improved intelligence.
 
 ## Repository map
 
@@ -116,7 +130,7 @@ For framework-neutral worker integration and systemd deployment, see the
 
 The calibration command creates a new workspace, submits 3,000 candidate answers through the
 blind worker contract, and selects 1,000 verified lineages. It intentionally stops at independent
-review and does not create a production release:
+review and is machine-classified as permanently non-releasable technical evidence:
 
 ```bash
 qaforge calibration-pilot pilot-workspace --size 1000 \

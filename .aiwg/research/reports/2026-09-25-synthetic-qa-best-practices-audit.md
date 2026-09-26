@@ -38,6 +38,10 @@ No CUDA, container, service, model inference, or training workload was started.
 
 Self-Instruct establishes a practical seed-and-filter loop; LIMA shows that small, curated sets can be disproportionately effective; DEITA and QDIT show why joint quality/diversity selection beats undifferentiated volume. The target should be several thousand *accepted* records, not several thousand first-pass generations. [REF-001, REF-004, REF-006, REF-017]
 
+**Adopted policy note:** this original audit recommendation is now a calibration-stage floor, not a
+production release threshold. CR-002 fixes production at 20,000 train, 2,000 validation, and 2,000
+test records with additional reasoning and behavior-anchor gates.
+
 ### 2. Difficulty and diversity must be designed
 
 Evol-Instruct supplies bounded mutation operators, #InsTag supplies fine-grained taxonomy analysis, and Persona Hub supplies a conditional diversity mechanism. Together they argue for a versioned coverage cube and auditable evolution edges, not generic prompts asking for “diverse hard questions.” Persona use must be bounded to avoid stereotypes and spurious demographic inference. [REF-002, REF-014, REF-015]

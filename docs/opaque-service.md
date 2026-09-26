@@ -32,14 +32,19 @@ the control plane creates the collection):
 }
 ```
 
-`204 No Content` means no task is currently available. Submit the answer before lease expiry:
+`204 No Content` means no task is currently available. Submit structured derivation steps and the
+separate final answer before lease expiry:
 
 ```http
 POST /v1/tasks/opaque-random-id/responses HTTP/1.1
 Authorization: Bearer ...
 Content-Type: application/json
 
-{"lease_token":"one-time-random-secret","answer":"worker answer"}
+{
+  "lease_token":"one-time-random-secret",
+  "derivation":["First bounded reasoning step.","Independent check of the result."],
+  "answer":"worker final answer"
+}
 ```
 
 The only success body is `{"status":"recorded"}` with HTTP 202. It deliberately omits correctness, verifier, score, selection, provenance, source, category, lineage, benchmark, and review information. A worker should discard the question and lease credential after receiving the receipt.
@@ -63,6 +68,10 @@ curl -fsS -X POST http://127.0.0.1:8412/v1/runs/run-001/finalize \
 ```
 
 Creating a run privately maps every seed/candidate coordinate to a randomized worker task and seals hashes of every corpus input. Finalization is allowed only after every task is submitted and the inputs and task mapping still match that seal. It then re-enters the normal Forge validation, verification, decontamination, selection, immutable-manifest, human-review, and release workflow. It never approves or releases records.
+
+Collections record the response contract used for every answer. On upgrade from the historical
+answer-only contract, unfinished submissions without derivations are atomically requeued under
+`structured-derivation-v2`; finalized historical collections remain visible as legacy evidence.
 
 Opaque and remote workers are not trusted to assert provenance. Returned citation identifiers are discarded, and the service does not append private citation markers to an answer. A citation-required seed therefore fails closed unless a future trusted grounding adapter validates the claim independently. Put the evidence needed to answer into the question, but do not expose private source identity.
 
@@ -109,12 +118,19 @@ An adapter needs no Forge-specific SDK:
 
 1. POST the lease endpoint.
 2. Pass the returned `messages` array unchanged to the agent/model.
-3. Extract the assistant text as `answer`.
-4. POST it with the lease credential.
+3. Extract one to sixteen concise derivation steps and a separate final answer. Do not include the
+   compiler-owned `Derivation:` or `Final answer:` headings.
+4. POST both fields with the lease credential.
 5. Do not retry a 202 submission; request a new task.
 
 Keep agent conversations task-local. Do not append prior tasks, receipts, control-plane status, or corpus metadata to the model context.
 
 ## Security boundary and residual limits
 
-Opacity means the service withholds privileged context and adaptive reward signals. Collection creation rejects a question containing an exact registered source, teacher, benchmark, seed, or lineage identifier, but it cannot infer every informal name or contextual clue. It does not make the question text unknowable, prevent an agent from inferring a category, recognize a public benchmark from memory, or stop out-of-band collusion. Put self-contained evidence in the question when it is necessary to answer, but keep source identity and verifier data private. Use TLS, ingress rate limits, and workload identity or mTLS before exposing the worker port across an untrusted network.
+Opacity means the service withholds privileged context and adaptive reward signals. Collection
+creation rejects a question containing an exact registered source, teacher, benchmark, seed,
+lineage, behavior-anchor, or anchor-source identifier, but it cannot infer every informal name or
+contextual clue. It does not make the question text unknowable, prevent category inference,
+recognize public material from memory, or stop out-of-band collusion. Put self-contained evidence
+in the question when necessary, but keep source identity and verifier data private. Use TLS,
+ingress rate limits, and workload identity or mTLS across an untrusted network.

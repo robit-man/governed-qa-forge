@@ -17,15 +17,21 @@ Please report vulnerabilities through GitHub private vulnerability reporting for
   app disables schema discovery, bounds request bodies, and successful submissions return no
   evaluation signal. Collection creation seals workspace input hashes, validates transformed
   question size, and rejects exact registered source, teacher, benchmark, seed, and lineage
-  identifiers in worker-visible text.
+  identifiers in worker-visible text. Behavior-anchor IDs and source references are also private
+  identifiers and remain outside worker questions and trainer-visible messages.
 - Credentialed teacher endpoints must use public HTTPS URLs without userinfo. Host addresses are
   checked immediately before access; network-layer egress controls remain recommended against DNS
   rebinding and routing-layer attacks.
 - Run, release, review-export, and checksum paths are constrained to their intended workspace
   subtrees. The service broker path is also constrained to the selected workspace.
 - Review identities resolve through an approved local registry and decisions bind candidate
-  digests. This does not cryptographically authenticate a human; use signed attestations where
-  that threat is material.
+  digests, structured derivations, and immutable canonical behavior-anchor context. Production
+  decisions require explicit derivation-verification and semantic-alignment attestations. This
+  does not cryptographically authenticate a human; use signed attestations where that threat is
+  material.
+- Calibration corpora are permanently non-releasable. Test fixtures require an internal-only
+  release path. Production count and coverage floors are code-owned and rechecked during release
+  verification.
 - Official release verification requires the root digest printed by `qaforge release` to be
   supplied from a separately trusted channel. `--allow-unanchored` provides damage detection only.
 - The built-in verifiers do not execute arbitrary generated code.

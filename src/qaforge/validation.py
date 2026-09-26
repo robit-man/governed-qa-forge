@@ -7,7 +7,13 @@ from typing import Any
 
 import regex
 
-from qaforge.io import canonical_json, sha256_text
+from qaforge.anchors import aiwg_behavior_anchors, behavior_anchor_private_identifiers
+from qaforge.formatting import (
+    DERIVATION_HEADING,
+    FINAL_ANSWER_HEADING,
+    legacy_content_sha256,
+    training_content_sha256,
+)
 from qaforge.models import (
     CandidateRecord,
     ForgeConfig,
@@ -16,6 +22,7 @@ from qaforge.models import (
     VerificationResult,
     VerifierKind,
 )
+from qaforge.opacity import exposed_private_identifiers
 from qaforge.transforms import transform_question
 
 SECRET_PATTERNS = {
@@ -55,7 +62,8 @@ def _gate(name: str, passed: bool, detail: str) -> GateResult:
 
 
 def validate_candidate(candidate: CandidateRecord, config: ForgeConfig) -> list[GateResult]:
-    combined = f"{candidate.question}\n{candidate.answer}"
+    derivation_text = "\n".join(candidate.derivation)
+    combined = f"{candidate.question}\n{derivation_text}\n{candidate.answer}"
     secret_hits = sorted(
         name for name, pattern in SECRET_PATTERNS.items() if pattern.search(combined)
     )
@@ -63,14 +71,34 @@ def validate_candidate(candidate: CandidateRecord, config: ForgeConfig) -> list[
     injection_hits = sorted(
         name for name, pattern in PROMPT_INJECTION_PATTERNS.items() if pattern.search(combined)
     )
-    expected_content_hash = sha256_text(
-        canonical_json({"question": candidate.question, "answer": candidate.answer})
+    expected_content_hash = (
+        legacy_content_sha256(candidate.question, candidate.answer)
+        if candidate.schema_version == "1.0"
+        else training_content_sha256(candidate.question, candidate.derivation, candidate.answer)
+    )
+    marker_collision = any(
+        marker in text
+        for marker in (DERIVATION_HEADING, FINAL_ANSWER_HEADING)
+        for text in (*candidate.derivation, candidate.answer)
+    )
+    canonical_anchor_map = {anchor.anchor_id: anchor for anchor in aiwg_behavior_anchors()}
+    referenced_anchors = [
+        canonical_anchor_map[anchor_id]
+        for anchor_id in candidate.behavior_anchor_ids
+        if anchor_id in canonical_anchor_map
+    ]
+    exposed_behavior_anchor = exposed_private_identifiers(
+        combined,
+        [
+            *candidate.source_ids,
+            *behavior_anchor_private_identifiers(referenced_anchors),
+        ],
     )
     return [
         _gate(
             "content_hash",
             candidate.content_sha256 == expected_content_hash,
-            "canonical question/answer SHA-256",
+            "canonical trainer-message SHA-256",
         ),
         _gate(
             "question_length",
@@ -81,6 +109,32 @@ def validate_candidate(candidate: CandidateRecord, config: ForgeConfig) -> list[
             "answer_length",
             len(candidate.answer.strip()) >= config.quality.min_answer_chars,
             f"characters={len(candidate.answer.strip())}",
+        ),
+        _gate(
+            "derivation_structure",
+            bool(candidate.derivation)
+            and all(
+                len(step.strip()) >= config.quality.min_derivation_chars
+                and len(step.strip()) <= 2048
+                for step in candidate.derivation
+            ),
+            f"steps={len(candidate.derivation)}; minimum_chars="
+            f"{config.quality.min_derivation_chars}",
+        ),
+        _gate(
+            "derivation_distinct",
+            derivation_text.strip().casefold() != candidate.answer.strip().casefold(),
+            "derivation must not be a copy of the final answer",
+        ),
+        _gate(
+            "output_marker_collision",
+            not marker_collision,
+            "compiler-owned headings must not appear in generated fields",
+        ),
+        _gate(
+            "latent_behavior_rendering",
+            not exposed_behavior_anchor,
+            "framework and anchor identifiers must remain outside trainer-visible content",
         ),
         _gate("secrets", not secret_hits, f"matches={secret_hits}"),
         _gate("pii", not pii_hits, f"matches={pii_hits}"),
@@ -151,7 +205,10 @@ def verify_answer(candidate: CandidateRecord) -> VerificationResult:
     elif spec.kind is VerifierKind.CITATION:
         required = set(spec.required_citation_ids)
         cited = set(candidate.citation_ids)
-        tokens_present = all(f"[{item}]" in candidate.answer for item in required)
+        tokens_present = all(
+            f"[{index}]" in candidate.answer
+            for index, _source_id in enumerate(spec.required_citation_ids, 1)
+        )
         passed = required.issubset(cited) and tokens_present
         detail = f"required={sorted(required)}; cited={sorted(cited)}"
     return VerificationResult(kind=spec.kind, passed=passed, detail=detail)
