@@ -1,0 +1,33 @@
+provenance_version: "1.0"
+record_id: prov-2026-09-25-27b-next-pass-directive
+entity:
+  path: NEXT-PASS.md
+  sha256: fef8f5f99d7ca72ddd95a5624c98bd4537a011b931477afd5eb6aaf8e16784c4
+  type: implementation_directive
+activity:
+  type: research_to_implementation_handoff
+  started_on: 2026-09-25
+  completed_on: 2026-09-25
+  methods:
+    - research-workflow
+    - induct-research
+    - research-document
+agents:
+  - id: codex-root
+    role: evidence_consolidation_and_implementation_handoff
+used:
+  audit:
+    path: reports/2026-09-25-27b-capability-dataset-audit.md
+    sha256: 66dc209e72aaebf3fe7982c1f06de90d199c03cd44cd9081682c41574ddc762d
+  specification:
+    path: synthesis/27b-capability-corpus-specification.md
+    sha256: 65d2f3bc83c60128c97f90ba7ff1e58c49f46eb21ec21c2015f3cac672da82a3
+  source_fixity_manifest:
+    path: fixity-manifest.json
+    sha256: d15d27fd400e5da3ceb34ccb967933bff27ed3addf97d3a56149de273f1012d7
+controls:
+  source_files_mutated: false
+  external_workloads_started: false
+  cuda_used: false
+  model_generation_performed: false
+decision: approved_for_next_implementation_pass

@@ -1,0 +1,18 @@
+ref_id: REF-025
+grade: moderate
+decision: include
+design: large controlled process-versus-outcome reward-model study with human step labels
+directness: moderate for verifier design; low for direct 27B SFT efficacy
+strengths:
+  - 800K human step labels
+  - active-learning ablation
+  - fresh OOD STEM evaluation
+  - explicit discussion of confounding and contamination
+limitations:
+  - reward-model selection rather than student SFT
+  - math only
+  - main ORM and PRM datasets not matched
+  - restricted evaluation subset
+risk_of_bias: moderate
+certainty: moderate
+decision_use: retain first-error labels and prioritize convincing hard negatives

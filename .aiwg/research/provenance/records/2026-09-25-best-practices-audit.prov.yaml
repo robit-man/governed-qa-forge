@@ -2,12 +2,15 @@ provenance_version: "1.0"
 record_id: prov-2026-09-25-synthetic-qa-audit
 entity:
   path: reports/2026-09-25-synthetic-qa-best-practices-audit.md
-  sha256: 692ccc49c91cb2d3f50055d6d95875dc6c2e3254dace0b00b2dc00dd690a5657
+  sha256: 9fb8ef44ffa3890c69ce0957582ca6bead864d33147e97f4d6b5b44c891c5e8f
   type: research_audit
+  prior_sha256: 692ccc49c91cb2d3f50055d6d95875dc6c2e3254dace0b00b2dc00dd690a5657
 activity:
   type: aiwg_research_induction_and_best_practices_audit
   started_on: 2026-09-25
   completed_on: 2026-09-25
+  revalidated_on: 2026-09-25
+  revalidation_note: entity hash refreshed after the audit received its final same-day revision
   methods:
     - research-workflow
     - induct-research

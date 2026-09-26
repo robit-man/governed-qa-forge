@@ -1,0 +1,18 @@
+ref_id: REF-026
+grade: moderate
+decision: include
+design: open technical report with four-run controlled data-construction ablations
+directness: moderate; principles are direct but main student is 8B and domain is math
+strengths:
+  - unique-question diversity ablation
+  - teacher-strength and verbosity ablations
+  - large open dataset and code
+  - semantic paraphrase decontamination
+limitations:
+  - validation choices optimized for 8B
+  - math-only
+  - majority vote is an imperfect label
+  - acknowledged overlap with a later benchmark
+risk_of_bias: moderate
+certainty: moderate_to_high
+decision_use: prioritize unique questions, strong teachers, concise traces, and semantic decontamination

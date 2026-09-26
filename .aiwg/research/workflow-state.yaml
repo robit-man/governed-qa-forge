@@ -1,5 +1,5 @@
-workflow: synthetic-qa-research-induction
-version: "1.0"
+workflow: synthetic-qa-and-27b-capability-research-induction
+version: "2.0"
 updated: 2026-09-25
 status: complete
 stages:
@@ -14,8 +14,9 @@ stages:
   provenance_capture: complete
   scaffold: complete
 counts:
-  acquired_primary_sources: 18
-  finding_documents: 18
-  quality_assessments: 18
-decision: pass_with_required_controls
-next_gate: authorize a real teacher and run the 500-1000-record calibration pilot
+  acquired_primary_sources: 31
+  finding_documents: 31
+  quality_assessments: 31
+decision: pass_for_27b_specific_experimental_build_with_required_controls
+next_gate: implement NEXT-PASS.md through the validated dry-run exit gate
+next_pass_directive: NEXT-PASS.md

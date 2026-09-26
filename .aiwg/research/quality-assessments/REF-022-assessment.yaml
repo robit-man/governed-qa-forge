@@ -1,0 +1,18 @@
+ref_id: REF-022
+grade: high
+decision: include
+design: extensive open technical study of SFT, DPO, RLVR, decontamination, and unseen evaluation
+directness: moderate because evaluated sizes are 8B and 70B rather than 27B
+strengths:
+  - open checkpoints, mixtures, and training artifacts
+  - controlled source-removal and stage ablations
+  - development and unseen evaluation suites
+  - documents mixed and unsuccessful findings
+limitations:
+  - mixture tuned on development benchmarks
+  - some judge-based metrics
+  - large resource requirements
+  - size transfer to 27B is indirect
+risk_of_bias: low_to_moderate
+certainty: high for broad-mixture and unseen-evaluation principles
+decision_use: organize the Forge as a capability portfolio with SFT then optional preference/RLVR stages

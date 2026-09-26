@@ -2,11 +2,14 @@ provenance_version: "1.0"
 record_id: prov-2026-09-25-synthetic-qa-design-principles
 entity:
   path: synthesis/synthetic-qa-corpus-design-principles.md
-  sha256: 3e8565b9ffaf39e86f1f7fd08934cc07babef420310bfbd938ca93ac0ad9b312
+  sha256: 7de129f04abfc4ef57d8afdc445e5bb8be561cb5dd6ed8004e7cb5dcb013ee8d
   type: research_synthesis
+  prior_sha256: 3e8565b9ffaf39e86f1f7fd08934cc07babef420310bfbd938ca93ac0ad9b312
 activity:
   type: evidence_synthesis
   completed_on: 2026-09-25
+  revalidated_on: 2026-09-25
+  revalidation_note: entity hash refreshed after the synthesis received its final same-day revision
 agents:
   - id: codex-root
     role: author

@@ -1,0 +1,18 @@
+ref_id: REF-019
+grade: moderate
+decision: include
+design: open preprint with a direct 32B SFT experiment and data-selection ablations
+directness: high for compact 32B reasoning elicitation; low for broad general capability
+strengths:
+  - same weight class as the target
+  - controlled selection ablations
+  - open model, data, and code
+  - reports training cost and test-time-compute behavior
+limitations:
+  - narrow reasoning evaluation
+  - one main base model
+  - many retained traces fail the paper's own correctness grader
+  - incomplete protection from pretraining contamination
+risk_of_bias: moderate
+certainty: moderate
+decision_use: require joint quality-difficulty-diversity selection and model-calibrated pilots
