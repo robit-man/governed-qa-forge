@@ -48,9 +48,19 @@ def test_fr013_openai_compatible_provider_parses_strict_json(tmp_path, monkeypat
         assert "17 multiplied by 6" in worker_prompt
         content = {
             "candidates": [
-                {"answer": "102", "citation_ids": ["forged-source"]},
-                {"answer": "102"},
-                {"answer": "102"},
+                {
+                    "derivation": ["Multiply the two stated integers to obtain the result."],
+                    "answer": "102",
+                    "citation_ids": ["forged-source"],
+                },
+                {
+                    "derivation": ["Compute the requested product and check the arithmetic."],
+                    "answer": "102",
+                },
+                {
+                    "derivation": ["Use multiplication on the values given in the prompt."],
+                    "answer": "102",
+                },
             ]
         }
         return httpx.Response(
@@ -119,6 +129,36 @@ def test_nfr003_dns_resolution_cannot_target_private_network(tmp_path, monkeypat
     )
     with pytest.raises(ConfigurationError, match="non-public"):
         OpenAICompatibleProvider(teacher).generate(workspace.seeds()[0], 3, workspace.config())
+
+
+def test_remote_provider_rejects_private_identifiers_before_network(tmp_path, monkeypatch) -> None:
+    workspace = Workspace(scaffold_workspace(tmp_path / "ws-private-prompt", demo=True))
+    teacher = TeacherEntry(
+        teacher_id="remote",
+        provider="openai-compatible",
+        model="teacher-v1",
+        base_url="https://teacher.example/v1",
+        authorization_status=AuthorizationStatus.APPROVED,
+        terms_snapshot_id="terms-v1",
+        authorization_basis="test",
+        allowed_target_uses=["tests"],
+        reviewed_at="2026-09-25T00:00:00Z",
+        reviewer="tester",
+    )
+    called = False
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(500)
+
+    seed = workspace.seeds()[0].model_copy(
+        update={"question": workspace.seeds()[0].question + " Use SRC-DEMO."}
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(ConfigurationError, match="private identifier"):
+        OpenAICompatibleProvider(teacher, client).generate(seed, 3, workspace.config())
+    assert called is False
 
 
 def test_nfr007_remote_response_is_byte_bounded(tmp_path, monkeypatch) -> None:

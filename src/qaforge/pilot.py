@@ -7,6 +7,7 @@ from collections import Counter
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
+from qaforge.anchors import AIWG_ANCHOR_SOURCE_ID, aiwg_behavior_anchors
 from qaforge.errors import ConfigurationError, ImmutableArtifactError
 from qaforge.io import (
     canonical_json,
@@ -20,6 +21,7 @@ from qaforge.io import (
 from qaforge.models import (
     AuthorizationStatus,
     CandidateRecord,
+    CorpusClass,
     Dimensions,
     ForgeConfig,
     GenerationConfig,
@@ -49,6 +51,7 @@ PILOT_CATEGORIES = (
     "deductive-logic",
     "program-tracing",
 )
+PILOT_ANCHOR_IDS = tuple(item.anchor_id for item in aiwg_behavior_anchors())
 LABEL_LEFT = (
     "amber",
     "birch",
@@ -128,6 +131,7 @@ def _seed(
         reference_answer=answer,
         dimensions=dimensions,
         verifier=verifier,
+        behavior_anchor_ids=[PILOT_ANCHOR_IDS[PILOT_CATEGORIES.index(category)]],
         source_ids=["SRC-PILOT-AUTHORED"],
     )
 
@@ -373,6 +377,7 @@ def scaffold_calibration_workspace(root: Path, size: int = 1000) -> Path:
     (root / "registry").mkdir()
     (root / "seeds").mkdir()
     seeds = calibration_seeds(size)
+    anchors = aiwg_behavior_anchors()
     category_floor = size // len(PILOT_CATEGORIES)
     config = ForgeConfig(
         demo_mode=False,
@@ -402,6 +407,7 @@ def scaffold_calibration_workspace(root: Path, size: int = 1000) -> Path:
             },
         ),
         release=ReleaseConfig(
+            corpus_class=CorpusClass.CALIBRATION,
             dataset_id="opaque-agent-calibration",
             version="0.2.0-calibration.1",
             license="MIT",
@@ -424,6 +430,24 @@ def scaffold_calibration_workspace(root: Path, size: int = 1000) -> Path:
         allowed_target_uses=["dataset pipeline evaluation"],
         compatible_release_licenses=["MIT"],
         attribution="Governed QA Forge calibration corpus",
+        reviewer="project-team",
+    )
+    anchor_source = SourceEntry(
+        source_id=AIWG_ANCHOR_SOURCE_ID,
+        uri="urn:qaforge:aiwg-latent-behavior-profile-v1",
+        retrieved_at="2026-09-25T00:00:00Z",
+        snapshot_sha256=sha256_text(
+            canonical_json([item.model_dump(mode="json") for item in anchors])
+        ),
+        authorization_status=AuthorizationStatus.APPROVED,
+        license_basis=(
+            "project-authored behavioral synthesis induced from the installed AIWG framework; "
+            "no verbatim framework text"
+        ),
+        redistribution_allowed=True,
+        allowed_target_uses=["dataset pipeline evaluation"],
+        compatible_release_licenses=["MIT"],
+        attribution="AIWG-informed latent behavior profile",
         reviewer="project-team",
     )
     teacher = TeacherEntry(
@@ -449,7 +473,11 @@ def scaffold_calibration_workspace(root: Path, size: int = 1000) -> Path:
         authorized_by="project-team",
     )
     write_yaml(root / "qaforge.yaml", config)
-    write_yaml(root / "registry" / "sources.yaml", {"sources": [source]})
+    write_yaml(root / "registry" / "sources.yaml", {"sources": [source, anchor_source]})
+    write_yaml(
+        root / "registry" / "behavior-anchors.yaml",
+        {"behavior_anchors": anchors},
+    )
     write_yaml(root / "registry" / "teachers.yaml", {"teachers": [teacher]})
     write_yaml(root / "registry" / "reviewers.yaml", {"reviewers": [reviewer]})
     write_yaml(
@@ -568,6 +596,15 @@ def solve_blind_calibration_task(question: str) -> str:
     raise ConfigurationError("blind calibration worker could not solve the supplied task")
 
 
+def derive_blind_calibration_task(question: str, answer: str) -> list[str]:
+    """Return bounded procedural evidence for the non-production transport calibration."""
+    del question
+    return [
+        "Identify the quantities, conditions, and requested output stated in the task.",
+        f"Apply the required operation and check the constraints; the resulting value is {answer}.",
+    ]
+
+
 def run_calibration_pilot(
     root: Path,
     size: int = 1000,
@@ -599,9 +636,14 @@ def run_calibration_pilot(
             lease_response.raise_for_status()
             task = lease_response.json()
             answer = solve_blind_calibration_task(task["messages"][0]["content"])
+            derivation = derive_blind_calibration_task(task["messages"][0]["content"], answer)
             response = agent.post(
                 f"/v1/tasks/{task['task_id']}/responses",
-                json={"lease_token": task["lease_token"], "answer": answer},
+                json={
+                    "lease_token": task["lease_token"],
+                    "derivation": derivation,
+                    "answer": answer,
+                },
                 headers=agent_headers,
             )
             response.raise_for_status()

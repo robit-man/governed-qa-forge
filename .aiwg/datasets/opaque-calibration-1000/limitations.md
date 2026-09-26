@@ -7,4 +7,6 @@
 - The calibration LSH settings favor exact/high-confidence duplicate discovery for controlled templates. Production programs should calibrate thresholds and retrieval bands on labeled duplicate and non-duplicate pairs.
 - Opacity prevents privileged metadata and adaptive reward signals from crossing the API. It cannot prevent inference from the question text, memorization of public material, or out-of-band collusion.
 - No real TCP listener, split Unix identity, systemd launch, TLS ingress, mTLS/workload identity, multi-host broker, sustained load test, crash-in-the-middle recovery drill, or live GPU-backed teacher was exercised.
-- No review decisions or release artifacts exist. Any downstream fine-tuning use requires an authorized independent review and a newly built, anchored release.
+- No review decisions or release artifacts exist. This corpus is permanently classified as
+  calibration and cannot be released even after review. Any downstream fine-tuning use requires a
+  newly generated production corpus satisfying `qaforge-reasoning-sft-minimum-v1`.

@@ -4,7 +4,7 @@ import ipaddress
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 
 class AuthorizationStatus(StrEnum):
@@ -55,6 +55,12 @@ class RunStage(StrEnum):
     RELEASED = "released"
 
 
+class CorpusClass(StrEnum):
+    PRODUCTION = "production"
+    CALIBRATION = "calibration"
+    TEST_FIXTURE = "test_fixture"
+
+
 class SplitConfig(BaseModel):
     train: float = Field(default=0.9, gt=0, lt=1)
     validation: float = Field(default=0.05, ge=0, lt=1)
@@ -82,6 +88,7 @@ class QualityConfig(BaseModel):
     target_size: int = Field(default=1000, ge=1)
     min_question_chars: int = Field(default=12, ge=1)
     min_answer_chars: int = Field(default=1, ge=1)
+    min_derivation_chars: int = Field(default=24, ge=8, le=4096)
     near_duplicate_threshold: float = Field(default=0.86, ge=0, le=1)
     semantic_threshold: float = Field(default=0.94, ge=0, le=1)
     semantic_dimensions: int = Field(default=384, ge=64, le=4096)
@@ -123,6 +130,7 @@ class ReviewConfig(BaseModel):
 
 
 class ReleaseConfig(BaseModel):
+    corpus_class: CorpusClass = CorpusClass.PRODUCTION
     dataset_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]+$")
     version: str = Field(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$")
     license: str
@@ -131,7 +139,7 @@ class ReleaseConfig(BaseModel):
 
 
 class ForgeConfig(BaseModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.1"
     language_bcp47: str = "en"
     demo_mode: bool = False
     split: SplitConfig
@@ -139,6 +147,21 @@ class ForgeConfig(BaseModel):
     quality: QualityConfig
     review: ReviewConfig = Field(default_factory=ReviewConfig)
     release: ReleaseConfig
+
+    @model_validator(mode="after")
+    def production_target_cannot_undercut_fixed_minimum(self) -> ForgeConfig:
+        from qaforge.standards import MIN_PRODUCTION_TOTAL
+
+        if self.schema_version == "1.0":
+            return self
+        if self.demo_mode != (self.release.corpus_class is CorpusClass.TEST_FIXTURE):
+            raise ValueError("demo_mode must be true exactly for test_fixture corpora")
+        if (
+            self.release.corpus_class is CorpusClass.PRODUCTION
+            and self.quality.target_size < MIN_PRODUCTION_TOTAL
+        ):
+            raise ValueError(f"production target_size must be at least {MIN_PRODUCTION_TOTAL}")
+        return self
 
 
 class SourceEntry(BaseModel):
@@ -205,6 +228,23 @@ class ReviewerEntry(BaseModel):
     authorized_by: str
 
 
+class BehaviorAnchorEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    anchor_id: str = Field(pattern=r"^aiwg\.[a-z0-9][a-z0-9.-]+$")
+    framework: Literal["aiwg"] = "aiwg"
+    domain: str = Field(min_length=3, max_length=128)
+    principle: str = Field(min_length=20, max_length=2048)
+    source_ref: str = Field(min_length=3, max_length=256)
+    source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_version: str = Field(min_length=3, max_length=128)
+    source_ids: list[str] = Field(min_length=1)
+    authorization_status: AuthorizationStatus
+    latent_training: Literal[True] = True
+    reviewed_at: str
+    reviewer: str
+
+
 class VerifierSpec(BaseModel):
     kind: VerifierKind
     expected: Any = None
@@ -232,6 +272,7 @@ class SeedRecord(BaseModel):
     dimensions: Dimensions
     verifier: VerifierSpec
     source_ids: list[str] = Field(min_length=1)
+    behavior_anchor_ids: list[str] = Field(default_factory=list, max_length=16)
     generation_depth: int = Field(default=0, ge=0)
 
 
@@ -244,8 +285,16 @@ class BenchmarkRecord(BaseModel):
 class GeneratedOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    derivation: list[str] = Field(min_length=1, max_length=16)
     answer: str = Field(min_length=1, max_length=32_768)
     citation_ids: list[str] = Field(default_factory=list, max_length=64)
+
+    @field_validator("derivation")
+    @classmethod
+    def derivation_steps_are_bounded(cls, value: list[str]) -> list[str]:
+        if any(not step.strip() or len(step.strip()) > 2048 for step in value):
+            raise ValueError("derivation steps must contain 1-2048 non-whitespace characters")
+        return [step.strip() for step in value]
 
 
 class GateResult(BaseModel):
@@ -269,21 +318,54 @@ class ContaminationResult(BaseModel):
 
 
 class ReviewDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     record_id: str
     candidate_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     decision: ReviewState = ReviewState.PENDING
     reviewer: str = ""
     rationale: str = ""
+    derivation_verified: bool = False
+    behavior_alignment_verified: bool = False
+    reviewed_at: str | None = None
+
+
+class ReviewAnchorContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    anchor_id: str
+    domain: str
+    principle: str
+    source_ref: str
+    source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ReviewPacket(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: str
+    candidate_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    question: str
+    derivation: list[str]
+    final_answer: str
+    category: str
+    behavior_anchors: list[ReviewAnchorContext] = Field(min_length=1)
+    decision: ReviewState = ReviewState.PENDING
+    reviewer: str = ""
+    rationale: str = ""
+    derivation_verified: bool = False
+    behavior_alignment_verified: bool = False
     reviewed_at: str | None = None
 
 
 class CandidateRecord(BaseModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.1"
     record_id: str
     seed_id: str
     lineage_id: str
     split: Split
     question: str = Field(min_length=1, max_length=16_384)
+    derivation: list[str] = Field(default_factory=list, max_length=16)
     answer: str = Field(min_length=1, max_length=32_768)
     seed_question: str = Field(min_length=1, max_length=16_384)
     question_transform_id: str
@@ -291,6 +373,7 @@ class CandidateRecord(BaseModel):
     verifier: VerifierSpec
     citation_ids: list[str] = Field(default_factory=list)
     source_ids: list[str]
+    behavior_anchor_ids: list[str] = Field(default_factory=list, max_length=16)
     parent_record_ids: list[str]
     generation_depth: int
     generation_run_id: str
@@ -312,6 +395,12 @@ class CandidateRecord(BaseModel):
     rejection_reasons: list[str] = Field(default_factory=list)
     review: ReviewDecision | None = None
 
+    @model_validator(mode="after")
+    def current_candidates_require_reasoning_and_anchors(self) -> CandidateRecord:
+        if self.schema_version == "1.1" and (not self.derivation or not self.behavior_anchor_ids):
+            raise ValueError("schema 1.1 candidates require derivation and behavior anchors")
+        return self
+
 
 class RunState(BaseModel):
     run_id: str
@@ -329,3 +418,4 @@ class DoctorReport(BaseModel):
     source_count: int
     teacher_count: int
     reviewer_count: int
+    behavior_anchor_count: int = 0

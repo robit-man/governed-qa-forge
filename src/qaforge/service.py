@@ -14,9 +14,10 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from qaforge.anchors import behavior_anchor_private_identifiers
 from qaforge.errors import ConfigurationError, ForgeError, GateError, ImmutableArtifactError
 from qaforge.io import canonical_json, sha256_file, sha256_text, utc_now
 from qaforge.models import GeneratedOutput, RunState, SeedRecord
@@ -27,10 +28,12 @@ from qaforge.workspace import Workspace
 
 AGENT_TOKEN_ENV = "QAFORGE_AGENT_TOKEN"
 CONTROL_TOKEN_ENV = "QAFORGE_CONTROL_TOKEN"
-OPAQUE_PROMPT_TEMPLATE_ID = "qaforge-opaque-task-v1"
+OPAQUE_PROMPT_TEMPLATE_ID = "qaforge-opaque-task-v2"
+CURRENT_RESPONSE_CONTRACT = "structured-derivation-v2"
+LEGACY_RESPONSE_CONTRACT = "answer-only-v1"
 OPAQUE_PROMPT_CONTRACT = (
     '{"messages":[{"role":"user","content":"{transformed_question}"}],'
-    '"response":{"answer":"string"}}'
+    '"response":{"derivation":["step"],"answer":"string"}}'
 )
 TOKEN_MIN_LENGTH = 32
 MAX_AGENT_MESSAGE_CHARS = 16_384
@@ -237,7 +240,16 @@ class TaskSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     lease_token: str = Field(min_length=32, max_length=256)
+    derivation: list[str] = Field(min_length=1, max_length=16)
     answer: str = Field(min_length=1, max_length=32_768)
+
+    @field_validator("derivation")
+    @classmethod
+    def normalize_derivation(cls, value: list[str]) -> list[str]:
+        steps = [step.strip() for step in value]
+        if any(not step or len(step) > 2048 for step in steps):
+            raise ValueError("derivation steps must contain 1-2048 non-whitespace characters")
+        return steps
 
 
 class SubmissionReceipt(BaseModel):
@@ -264,13 +276,14 @@ class CollectionStatus(BaseModel):
     created_at: str
     finalized_at: str | None = None
     failure: str | None = None
+    response_contract: str
     forge_state: RunState | None = None
 
 
 class CollectedProvider(Provider):
     """Provider bridge whose answers were collected through the blind worker plane."""
 
-    def __init__(self, teacher: object, responses: dict[str, dict[int, str]]) -> None:
+    def __init__(self, teacher: object, responses: dict[str, dict[int, GeneratedOutput]]) -> None:
         super().__init__(teacher)  # type: ignore[arg-type]
         self._responses = responses
 
@@ -282,9 +295,7 @@ class CollectedProvider(Provider):
         indexed = self._responses.get(seed.seed_id, {})
         if set(indexed) != set(range(count)):
             raise ConfigurationError(f"collection is incomplete for private seed {seed.seed_id}")
-        outputs = [
-            GeneratedOutput(answer=indexed[index], citation_ids=[]) for index in range(count)
-        ]
+        outputs = [indexed[index] for index in range(count)]
         return outputs, OPAQUE_PROMPT_TEMPLATE_ID, sha256_text(OPAQUE_PROMPT_CONTRACT)
 
 
@@ -337,7 +348,8 @@ class TaskBroker:
                     created_at TEXT NOT NULL,
                     finalized_at TEXT,
                     failure TEXT,
-                    input_sha256 TEXT
+                    input_sha256 TEXT,
+                    response_contract TEXT NOT NULL DEFAULT 'structured-derivation-v2'
                 );
 
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -349,6 +361,7 @@ class TaskBroker:
                     state TEXT NOT NULL CHECK (state IN ('queued', 'leased', 'submitted')),
                     lease_digest TEXT,
                     lease_expires_at REAL,
+                    derivation_json TEXT,
                     answer TEXT,
                     submitted_at TEXT,
                     UNIQUE (run_id, seed_id, candidate_index)
@@ -358,12 +371,42 @@ class TaskBroker:
                     ON tasks(run_id, state, lease_expires_at);
                 """
             )
-            columns = {
-                row["name"]
-                for row in connection.execute("PRAGMA table_info(collection_runs)").fetchall()
-            }
-            if "input_sha256" not in columns:
-                connection.execute("ALTER TABLE collection_runs ADD COLUMN input_sha256 TEXT")
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                columns = {
+                    row["name"]
+                    for row in connection.execute("PRAGMA table_info(collection_runs)").fetchall()
+                }
+                if "input_sha256" not in columns:
+                    connection.execute("ALTER TABLE collection_runs ADD COLUMN input_sha256 TEXT")
+                if "response_contract" not in columns:
+                    connection.execute(
+                        "ALTER TABLE collection_runs ADD COLUMN response_contract TEXT NOT NULL "
+                        f"DEFAULT '{LEGACY_RESPONSE_CONTRACT}'"
+                    )
+                task_columns = {
+                    row["name"] for row in connection.execute("PRAGMA table_info(tasks)").fetchall()
+                }
+                if "derivation_json" not in task_columns:
+                    connection.execute("ALTER TABLE tasks ADD COLUMN derivation_json TEXT")
+                connection.execute(
+                    "UPDATE tasks SET state = 'queued', answer = NULL, submitted_at = NULL, "
+                    "lease_digest = NULL, lease_expires_at = NULL "
+                    "WHERE run_id IN (SELECT run_id FROM collection_runs "
+                    "WHERE response_contract = ? AND state IN ('collecting', 'ready')) "
+                    "AND state = 'submitted' AND derivation_json IS NULL",
+                    (LEGACY_RESPONSE_CONTRACT,),
+                )
+                connection.execute(
+                    "UPDATE collection_runs SET state = 'collecting', response_contract = ?, "
+                    "failure = NULL WHERE response_contract = ? "
+                    "AND state IN ('collecting', 'ready')",
+                    (CURRENT_RESPONSE_CONTRACT, LEGACY_RESPONSE_CONTRACT),
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
             if self.settings.control_token is not None:
                 self._recover_finalizing(connection)
         if not database_existed:
@@ -419,6 +462,7 @@ class TaskBroker:
         sealed_inputs = _workspace_input_hashes(self.workspace)
         config = self.workspace.config()
         seeds = sorted(self.workspace.seeds(), key=lambda item: item.seed_id)
+        behavior_anchors = self.workspace.behavior_anchors()
         private_identifiers = tuple(
             identifier.casefold()
             for identifier in {
@@ -427,6 +471,7 @@ class TaskBroker:
                 *[benchmark.benchmark_id for benchmark in self.workspace.benchmarks()],
                 *[seed.seed_id for seed in seeds],
                 *[seed.lineage_id for seed in seeds],
+                *behavior_anchor_private_identifiers(behavior_anchors),
             }
         )
         task_rows: list[tuple[str, str, str, int, str, str]] = []
@@ -456,9 +501,15 @@ class TaskBroker:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 "INSERT INTO collection_runs("
-                "run_id, state, expected_tasks, created_at, input_sha256"
-                ") VALUES (?, 'collecting', ?, ?, ?)",
-                (run_id, len(task_rows), created_at, canonical_json(sealed_inputs)),
+                "run_id, state, expected_tasks, created_at, input_sha256, response_contract"
+                ") VALUES (?, 'collecting', ?, ?, ?, ?)",
+                (
+                    run_id,
+                    len(task_rows),
+                    created_at,
+                    canonical_json(sealed_inputs),
+                    CURRENT_RESPONSE_CONTRACT,
+                ),
             )
             connection.executemany(
                 "INSERT INTO tasks(task_id, run_id, seed_id, candidate_index, question, state) "
@@ -525,7 +576,8 @@ class TaskBroker:
 
     def submit(self, task_id: str, submission: TaskSubmission) -> SubmissionReceipt:
         answer = submission.answer.strip()
-        if not answer:
+        derivation = [step.strip() for step in submission.derivation]
+        if not answer or not derivation or any(not step for step in derivation):
             raise TaskUnavailable("task unavailable")
         now = time.time()
         connection = self._connect()
@@ -539,11 +591,19 @@ class TaskBroker:
                 connection.rollback()
                 raise TaskUnavailable("task unavailable")
             updated = connection.execute(
-                "UPDATE tasks SET state = 'submitted', answer = ?, submitted_at = ?, "
+                "UPDATE tasks SET state = 'submitted', derivation_json = ?, answer = ?, "
+                "submitted_at = ?, "
                 "lease_digest = NULL, lease_expires_at = NULL "
                 "WHERE task_id = ? AND state = 'leased' AND lease_digest = ? "
                 "AND lease_expires_at >= ?",
-                (answer, utc_now(), task_id, _digest(submission.lease_token), now),
+                (
+                    canonical_json(derivation),
+                    answer,
+                    utc_now(),
+                    task_id,
+                    _digest(submission.lease_token),
+                    now,
+                ),
             )
             if updated.rowcount != 1:
                 connection.rollback()
@@ -592,6 +652,7 @@ class TaskBroker:
             created_at=run["created_at"],
             finalized_at=run["finalized_at"],
             failure=run["failure"],
+            response_contract=run["response_contract"],
             forge_state=forge_state,
         )
 
@@ -601,7 +662,8 @@ class TaskBroker:
         try:
             connection.execute("BEGIN IMMEDIATE")
             run = connection.execute(
-                "SELECT state, expected_tasks, input_sha256 FROM collection_runs WHERE run_id = ?",
+                "SELECT state, expected_tasks, input_sha256, response_contract "
+                "FROM collection_runs WHERE run_id = ?",
                 (run_id,),
             ).fetchone()
             if run is None:
@@ -614,6 +676,9 @@ class TaskBroker:
             if run["state"] != "ready" or submitted != run["expected_tasks"]:
                 connection.rollback()
                 raise ConfigurationError("collection is not ready for finalization")
+            if run["response_contract"] != CURRENT_RESPONSE_CONTRACT:
+                connection.rollback()
+                raise ConfigurationError("collection uses a legacy response contract")
             try:
                 sealed_inputs = self._assert_collection_binding(connection, run_id, run)
             except (ForgeError, OSError, ValueError) as exc:
@@ -632,18 +697,29 @@ class TaskBroker:
             connection.close()
 
         try:
-            responses: dict[str, dict[int, str]] = {}
+            responses: dict[str, dict[int, GeneratedOutput]] = {}
             with self._connection() as read_connection:
                 rows = read_connection.execute(
-                    "SELECT seed_id, candidate_index, answer FROM tasks "
+                    "SELECT seed_id, candidate_index, derivation_json, answer FROM tasks "
                     "WHERE run_id = ? ORDER BY seed_id, candidate_index",
                     (run_id,),
                 ).fetchall()
             for row in rows:
                 answer = row["answer"]
-                if not isinstance(answer, str):
+                derivation_json = row["derivation_json"]
+                if not isinstance(answer, str) or not isinstance(derivation_json, str):
                     raise ConfigurationError("collection contains an empty private response")
-                responses.setdefault(row["seed_id"], {})[row["candidate_index"]] = answer
+                try:
+                    output = GeneratedOutput(
+                        derivation=json.loads(derivation_json),
+                        answer=answer,
+                        citation_ids=[],
+                    )
+                except (json.JSONDecodeError, ValueError, TypeError) as exc:
+                    raise ConfigurationError(
+                        "collection contains an invalid private derivation"
+                    ) from exc
+                responses.setdefault(row["seed_id"], {})[row["candidate_index"]] = output
             config = self.workspace.config()
             teacher = self.workspace.teacher(config.generation.provider_id)
             provider = CollectedProvider(teacher, responses)
@@ -715,6 +791,9 @@ def _workspace_input_hashes(workspace: Workspace) -> dict[str, str]:
         "taxonomy": workspace.registry_dir / "taxonomy.yaml",
         "seeds": workspace.seeds_path,
     }
+    behavior_anchor_path = workspace.registry_dir / "behavior-anchors.yaml"
+    if behavior_anchor_path.exists():
+        paths["behavior_anchors"] = behavior_anchor_path
     if workspace.benchmarks_path.exists():
         paths["protected_benchmarks"] = workspace.benchmarks_path
     return {key: sha256_file(path) for key, path in paths.items()}

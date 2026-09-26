@@ -20,7 +20,15 @@
 - **FR-016:** Expose an independently authenticated control API that creates collection runs, reports aggregate queue state, and finalizes complete collections through the normal governed compiler.
 - **FR-017:** Atomically lease tasks with expiring one-time credentials and accept at most one durable submission per task.
 - **FR-018:** Provide hardened system-service deployment assets and a framework-neutral HTTP integration contract.
-- **FR-019:** Provide and execute a deterministic 1,000-selected-record calibration pass through the blind worker contract, leaving its output pending independent review.
+- **FR-019:** Provide and execute a deterministic 1,000-selected-record calibration pass through the blind worker contract, leaving its output pending independent review as permanently non-releasable technical evidence.
+- **FR-020:** Require each generated candidate to contain one to sixteen structured derivation steps and a separately stored final answer; verify only the final answer against the independent seed contract.
+- **FR-021:** Enforce the non-configurable production policy `qaforge-reasoning-sft-minimum-v1`: at least 20,000 train, 2,000 validation, and 2,000 test records, ten categories, and all three difficulty tiers.
+- **FR-022:** Classify corpora as production, calibration, or test fixture; reject calibration release unconditionally and permit fixture release only through the internal demo path.
+- **FR-023:** Emit standardized messages-only conversational JSONL and same-order provenance sidecars; bind review and content hashes to the exact trainer-visible messages.
+- **FR-024:** Require every production record to reference an approved AIWG behavior anchor and require release coverage of all ten governed behavior domains while excluding framework and anchor identifiers from trainer-visible content.
+- **FR-025:** Require an approved production review decision to explicitly attest that the candidate derivation was verified and that the example semantically enacts its canonical behavior-anchor principles.
+- **FR-026:** Ship a manifest-bound downstream evaluation protocol requiring unchanged-base comparison, training seeds 17/29/47, and test isolation before any improvement or convergence claim.
+- **FR-027:** Preserve read-only verification of schema-1.0 artifacts while preventing new generation or release, and atomically requeue unfinished answer-only broker submissions under the v2 response contract.
 
 ## Non-functional requirements
 
@@ -37,6 +45,8 @@
 - **NFR-011:** Service credentials are environment-only; bearer comparisons are constant-time and lease credentials are persisted only as digests.
 - **NFR-012:** Broker claims and submissions remain consistent under concurrent clients and process restart.
 - **NFR-013:** Broker writes remain inside the selected workspace; worker request bodies, transformed question sizes, and server concurrency are bounded before task delivery.
+- **NFR-014:** Production size, category, difficulty, and behavior-domain floors are code-owned invariants and cannot be weakened through workspace configuration.
+- **NFR-015:** Worker leases and trainer-visible messages disclose no AIWG, behavior-anchor, source, verifier, score, or reward identifiers; provenance remains in sealed private inputs and release sidecars.
 
 ## Traceability
 

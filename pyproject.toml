@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "governed-qa-forge"
-version = "0.1.0"
+version = "0.2.0"
 description = "A governed dataset compiler for traceable synthetic question/answer corpora."
 readme = "README.md"
 license = { file = "LICENSE" }

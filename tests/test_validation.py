@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from qaforge.io import canonical_json, sha256_text, utc_now
+from qaforge.formatting import training_content_sha256
+from qaforge.io import utc_now
 from qaforge.models import (
     CandidateRecord,
     Dimensions,
@@ -22,13 +23,14 @@ def _candidate(
     verifier: VerifierSpec,
     question: str = "A sufficiently long verification question?",
 ) -> CandidateRecord:
-    content_hash = sha256_text(canonical_json({"question": question, "answer": output.answer}))
+    content_hash = training_content_sha256(question, output.derivation, output.answer)
     return CandidateRecord(
         record_id="qa_test",
         seed_id="seed-test",
         lineage_id="family-test",
         split=Split.TRAIN,
         question=question,
+        derivation=output.derivation,
         answer=output.answer,
         seed_question=question,
         question_transform_id="identity-v1",
@@ -44,6 +46,7 @@ def _candidate(
         verifier=verifier,
         citation_ids=output.citation_ids,
         source_ids=["SRC-DEMO"],
+        behavior_anchor_ids=["aiwg.independent-verification"],
         parent_record_ids=["seed-test"],
         generation_depth=1,
         generation_run_id="test-run",
@@ -67,7 +70,7 @@ def _candidate(
         ("ABC-42", VerifierSpec(kind=VerifierKind.REGEX, pattern=r"ABC-\d{2}"), []),
         ('{"ok":true}', VerifierSpec(kind=VerifierKind.JSON, expected={"ok": True}), []),
         (
-            "Supported [SRC-DEMO].",
+            "Supported [1].",
             VerifierSpec(kind=VerifierKind.CITATION, required_citation_ids=["SRC-DEMO"]),
             ["SRC-DEMO"],
         ),
@@ -83,6 +86,7 @@ def test_fr007_independent_verifiers(
     candidate = _candidate(
         config,
         GeneratedOutput(
+            derivation=["Apply the task constraints and independently check the result."],
             answer=answer,
             citation_ids=citation_ids,
         ),
@@ -96,6 +100,7 @@ def test_fr006_secret_and_pii_scans_fail(demo_workspace: Workspace) -> None:
     candidate = _candidate(
         config,
         GeneratedOutput(
+            derivation=["Inspect the supplied values and check them for sensitive material."],
             answer="AKIA" + "ABCDEFGHIJKLMNOP",
         ),
         VerifierSpec(kind=VerifierKind.EXACT, expected="unused"),
@@ -109,7 +114,10 @@ def test_fr006_secret_and_pii_scans_fail(demo_workspace: Workspace) -> None:
 def test_fr007_question_must_preserve_seed_semantics(demo_workspace: Workspace) -> None:
     candidate = _candidate(
         demo_workspace.config(),
-        GeneratedOutput(answer="102"),
+        GeneratedOutput(
+            derivation=["Multiply the two stated integers and check the resulting value."],
+            answer="102",
+        ),
         VerifierSpec(kind=VerifierKind.NUMERIC, expected=102),
         question="What is one plus one?",
     ).model_copy(update={"seed_question": "What is 17 multiplied by 6?"})

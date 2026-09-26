@@ -39,17 +39,35 @@ Same-lineage variants may remain candidates so selection can choose the best con
 
 All selected records require complete decisions. `review-export` produces one packet per row inside
 the workspace boundary; `review-import` refuses missing, duplicate, unknown, or pending decisions.
-Bulk approval requires an explicit manual-review acknowledgement outside demo workspaces.
+Bulk approval requires an explicit manual-review acknowledgement for every non-fixture corpus.
 Each decision is bound to the candidate content hash and its reviewer must resolve to an approved,
 category-authorized entry in `registry/reviewers.yaml`. This is an operator-controlled local trust
 registry, not a replacement for organization identity or signed review attestations.
+For an approved production decision, both `derivation_verified` and
+`behavior_alignment_verified` must be true. The review packet repeats the exact question,
+derivation, final answer, category, and canonical anchor principles; import rejects any displayed
+content or anchor-context change. The digest covers the question, derivation, final answer, roles,
+and compiler-owned response format.
+
+## Latent AIWG behavior anchors
+
+The governed anchor registry captures ten AIWG-informed reasoning domains. Anchors are private
+provenance, not prompt decoration: examples must enact the behavior through concrete scenarios,
+tradeoffs, derivations, and actions without naming AIWG, skill IDs, source IDs, or framework
+mechanics in trainer-visible messages. The registry must exactly match the code-owned profile
+induced from hashed AIWG artifacts, and reviewers explicitly attest that each example semantically
+enacts its assigned principles. The opaque worker plane also rejects exact registered anchor
+identifiers in questions. This repetition turns the decision patterns into learned behavior while
+keeping source and evaluation context outside the model conversation.
 
 ## Release
 
 A release is assembled in a hidden temporary directory and atomically promoted to its version
-path. Existing releases cannot be overwritten, and review rejection cannot silently shrink a
-release below `target_size`. Its fixity file covers the split data and every evidence artifact,
-including a sanitized generation-run manifest with source, teacher, policy, and input hashes.
+path. Existing releases cannot be overwritten. Production can never release below 20,000 train,
+2,000 validation, and 2,000 test rows, ten categories, three difficulty tiers, or the ten required
+AIWG behavior domains. These floors are code constants, not operator configuration. Review
+rejection also cannot shrink the release below `target_size`. Fixity covers messages-only split
+data, bound metadata sidecars, and every evidence artifact.
 
 ## Suggested production policy
 

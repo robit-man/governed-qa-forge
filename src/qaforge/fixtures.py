@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from qaforge.anchors import AIWG_ANCHOR_SOURCE_ID, aiwg_behavior_anchors
 from qaforge.errors import ImmutableArtifactError
-from qaforge.io import sha256_text, write_jsonl, write_text, write_yaml
+from qaforge.io import canonical_json, sha256_text, write_jsonl, write_text, write_yaml
 from qaforge.models import (
     AuthorizationStatus,
+    CorpusClass,
     Dimensions,
     ForgeConfig,
     GenerationConfig,
@@ -98,7 +100,7 @@ def _seeds() -> list[SeedRecord]:
             seed_id="seed-citation-001",
             lineage_id="family-citation-001",
             question="According to the demo source, what color is the calibration marker?",
-            reference_answer="The calibration marker is cobalt blue [SRC-DEMO].",
+            reference_answer="The calibration marker is cobalt blue [1].",
             dimensions=Dimensions(
                 category="source-grounded",
                 domain="science",
@@ -175,7 +177,11 @@ def scaffold_workspace(root: Path, demo: bool = False) -> Path:
     (root / "registry").mkdir()
     (root / "seeds").mkdir()
 
-    seeds = _seeds()
+    anchors = aiwg_behavior_anchors()
+    seeds = [
+        seed.model_copy(update={"behavior_anchor_ids": [anchors[index % len(anchors)].anchor_id]})
+        for index, seed in enumerate(_seeds())
+    ]
     categories = sorted({seed.dimensions.category for seed in seeds})
     coverage_floors = {
         dimension: {
@@ -203,7 +209,12 @@ def scaffold_workspace(root: Path, demo: bool = False) -> Path:
     }
     config = ForgeConfig(
         demo_mode=demo,
-        split=SplitConfig(train=0.75, validation=0.125, test=0.125, salt="qaforge-demo-v1"),
+        split=SplitConfig(
+            train=0.75 if demo else 0.8,
+            validation=0.125 if demo else 0.1,
+            test=0.125 if demo else 0.1,
+            salt="qaforge-demo-v1" if demo else "qaforge-production-v1",
+        ),
         generation=GenerationConfig(
             provider_id="teacher-fixture" if demo else "teacher-main",
             candidates_per_seed=3,
@@ -212,12 +223,13 @@ def scaffold_workspace(root: Path, demo: bool = False) -> Path:
             max_tokens=512,
         ),
         quality=QualityConfig(
-            target_size=8 if demo else 500,
+            target_size=8 if demo else 30_000,
             max_per_lineage=1,
             coverage_floors=coverage_floors,
         ),
         review=ReviewConfig(required=True),
         release=ReleaseConfig(
+            corpus_class=(CorpusClass.TEST_FIXTURE if demo else CorpusClass.PRODUCTION),
             dataset_id="governed-qa-demo" if demo else "replace-with-dataset-id",
             version="0.1.0",
             license="MIT",
@@ -242,7 +254,32 @@ def scaffold_workspace(root: Path, demo: bool = False) -> Path:
         attribution="Governed QA Forge demo fixture",
         reviewer="project-team",
     )
-    write_yaml(root / "registry" / "sources.yaml", {"sources": [source]})
+    anchor_source = SourceEntry(
+        source_id=AIWG_ANCHOR_SOURCE_ID,
+        uri="urn:qaforge:aiwg-latent-behavior-profile-v1",
+        retrieved_at="2026-09-25T00:00:00Z",
+        snapshot_sha256=sha256_text(
+            canonical_json([item.model_dump(mode="json") for item in anchors])
+        ),
+        authorization_status=AuthorizationStatus.APPROVED,
+        license_basis=(
+            "project-authored behavioral synthesis induced from the installed AIWG framework; "
+            "no verbatim framework text"
+        ),
+        redistribution_allowed=True,
+        allowed_target_uses=[
+            "supervised fine-tuning experiments",
+            "dataset pipeline evaluation",
+        ],
+        compatible_release_licenses=["MIT"],
+        attribution="AIWG-informed latent behavior profile",
+        reviewer="project-team",
+    )
+    write_yaml(root / "registry" / "sources.yaml", {"sources": [source, anchor_source]})
+    write_yaml(
+        root / "registry" / "behavior-anchors.yaml",
+        {"behavior_anchors": anchors},
+    )
     if demo:
         teacher = TeacherEntry(
             teacher_id="teacher-fixture",
@@ -314,7 +351,9 @@ def scaffold_workspace(root: Path, demo: bool = False) -> Path:
     write_text(
         root / "README.md",
         "# Corpus workspace\n\n"
-        "Run `qaforge doctor .` before generation. "
-        "Generated runs and releases are immutable.\n",
+        "Run `qaforge doctor .` before generation. Production release requires at least "
+        "20,000 train, 2,000 validation, and 2,000 test records, ten categories, all three "
+        "difficulty tiers, and all ten AIWG-informed behavior domains. Generated runs and "
+        "releases are immutable.\n",
     )
     return root

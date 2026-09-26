@@ -1,6 +1,7 @@
 # Execution Evidence — Opaque Calibration 1000
 
-**Result:** PASS for technical calibration; HOLD for production release pending independent review.
+**Result:** PASS for historical technical calibration; INELIGIBLE for production release by fixed
+corpus-class policy.
 
 ## Counts
 
@@ -30,3 +31,6 @@ ab70d85376e26b91ab4af0db983428545640eb0cf644f57d798c720ebfe3f132  runs/opaque-ca
 ```
 
 The runtime workspace is `/srv/question_stack/pilot-workspace` and is intentionally excluded from Git. The service state is `finalized`, meaning collection has entered the immutable Forge run; it does not mean the dataset has passed review or been released. The pilot drove the separate FastAPI application contracts through in-process test clients. It did not start TCP listeners or exercise the documented split Unix identities/systemd units.
+
+These hashes describe the earlier answer-only schema. They remain historical evidence and are not
+migrated, rehashed, or eligible for release under schema 1.1.

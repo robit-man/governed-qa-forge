@@ -102,10 +102,28 @@ def review_all_command(
         "--acknowledge-manual-review",
         help="Confirm every selected row was manually reviewed.",
     ),
+    acknowledge_derivation_verification: bool = typer.Option(
+        False,
+        "--acknowledge-derivation-verification",
+        help="Confirm every approved derivation was checked for validity.",
+    ),
+    acknowledge_behavior_alignment: bool = typer.Option(
+        False,
+        "--acknowledge-behavior-alignment",
+        help="Confirm every approved example demonstrates its assigned behavior principles.",
+    ),
 ) -> None:
     """Record one explicit decision for every selected row."""
     try:
-        state = approve_all(Workspace(path), run_id, reviewer, rationale, acknowledge_manual_review)
+        state = approve_all(
+            Workspace(path),
+            run_id,
+            reviewer,
+            rationale,
+            acknowledge_manual_review,
+            acknowledge_derivation_verification,
+            acknowledge_behavior_alignment,
+        )
         typer.echo(json.dumps(state.model_dump(mode="json"), indent=2))
     except (ForgeError, OSError, ValueError) as exc:
         _fail(exc)
@@ -267,7 +285,7 @@ def demo_command(path: Path) -> None:
             rationale="deterministic fixture approval for end-to-end demonstration",
             acknowledged_manual_review=False,
         )
-        release_path = build_release(workspace, "demo-run")
+        release_path = build_release(workspace, "demo-run", allow_test_fixture=True)
         result = verify_release(workspace, "0.1.0", allow_unanchored=True)
         selected = read_jsonl(workspace.run_dir("demo-run") / "selected.jsonl", CandidateRecord)
         typer.echo(

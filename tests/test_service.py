@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from qaforge.io import read_jsonl
 from qaforge.models import CandidateRecord, RunStage
 from qaforge.pilot import (
     calibration_seeds,
+    derive_blind_calibration_task,
     scaffold_calibration_workspace,
     solve_blind_calibration_task,
 )
@@ -85,16 +87,25 @@ def test_fr015_worker_plane_is_opaque_and_feedback_free(tmp_path: Path) -> None:
         assert private_name not in serialized
 
     answer = solve_blind_calibration_task(task["messages"][0]["content"])
+    derivation = derive_blind_calibration_task(task["messages"][0]["content"], answer)
     submitted = agent.post(
         f"/v1/tasks/{task['task_id']}/responses",
-        json={"lease_token": task["lease_token"], "answer": answer},
+        json={
+            "lease_token": task["lease_token"],
+            "derivation": derivation,
+            "answer": answer,
+        },
         headers=_headers(AGENT_TOKEN),
     )
     assert submitted.status_code == 202
     assert submitted.json() == {"status": "recorded"}
     replay = agent.post(
         f"/v1/tasks/{task['task_id']}/responses",
-        json={"lease_token": task["lease_token"], "answer": answer},
+        json={
+            "lease_token": task["lease_token"],
+            "derivation": derivation,
+            "answer": answer,
+        },
         headers=_headers(AGENT_TOKEN),
     )
     assert replay.status_code == 404
@@ -121,9 +132,14 @@ def test_fr016_service_finalization_reuses_governed_pipeline(tmp_path: Path) -> 
                 break
             task = lease.json()
             answer = solve_blind_calibration_task(task["messages"][0]["content"])
+            derivation = derive_blind_calibration_task(task["messages"][0]["content"], answer)
             receipt = agent.post(
                 f"/v1/tasks/{task['task_id']}/responses",
-                json={"lease_token": task["lease_token"], "answer": answer},
+                json={
+                    "lease_token": task["lease_token"],
+                    "derivation": derivation,
+                    "answer": answer,
+                },
                 headers=_headers(AGENT_TOKEN),
             )
             assert receipt.status_code == 202
@@ -199,8 +215,33 @@ def test_task_submission_rejects_blank_after_normalization(tmp_path: Path) -> No
     with pytest.raises(TaskUnavailable, match="task unavailable"):
         broker.submit(
             lease.task_id,
-            TaskSubmission(lease_token=lease.lease_token, answer="   "),
+            TaskSubmission(
+                lease_token=lease.lease_token,
+                derivation=["Inspect the task and calculate the requested result."],
+                answer="   ",
+            ),
         )
+
+
+def test_worker_submission_requires_structured_derivation(tmp_path: Path) -> None:
+    root = scaffold_calibration_workspace(tmp_path / "missing-derivation", size=10)
+    settings = _settings(root)
+    control = TestClient(create_control_app(settings))
+    agent = TestClient(create_agent_app(settings))
+    created = control.post(
+        "/v1/runs",
+        json={"run_id": "missing-derivation-run"},
+        headers=_headers(CONTROL_TOKEN),
+    )
+    assert created.status_code == 201
+    task = agent.post("/v1/tasks/lease", headers=_headers(AGENT_TOKEN)).json()
+    answer = solve_blind_calibration_task(task["messages"][0]["content"])
+    rejected = agent.post(
+        f"/v1/tasks/{task['task_id']}/responses",
+        json={"lease_token": task["lease_token"], "answer": answer},
+        headers=_headers(AGENT_TOKEN),
+    )
+    assert rejected.status_code == 422
 
 
 def test_collection_fails_closed_if_private_inputs_change(tmp_path: Path) -> None:
@@ -209,9 +250,14 @@ def test_collection_fails_closed_if_private_inputs_change(tmp_path: Path) -> Non
     broker.create_collection("sealed-run")
     while (lease := broker.lease()) is not None:
         answer = solve_blind_calibration_task(lease.messages[0].content)
+        derivation = derive_blind_calibration_task(lease.messages[0].content, answer)
         broker.submit(
             lease.task_id,
-            TaskSubmission(lease_token=lease.lease_token, answer=answer),
+            TaskSubmission(
+                lease_token=lease.lease_token,
+                derivation=derivation,
+                answer=answer,
+            ),
         )
 
     seeds_path = Workspace(root).seeds_path
@@ -233,9 +279,14 @@ def test_control_restart_recovers_unstarted_finalization(tmp_path: Path) -> None
     broker.create_collection("recover-run")
     while (lease := broker.lease()) is not None:
         answer = solve_blind_calibration_task(lease.messages[0].content)
+        derivation = derive_blind_calibration_task(lease.messages[0].content, answer)
         broker.submit(
             lease.task_id,
-            TaskSubmission(lease_token=lease.lease_token, answer=answer),
+            TaskSubmission(
+                lease_token=lease.lease_token,
+                derivation=derivation,
+                answer=answer,
+            ),
         )
 
     with broker._connection() as connection:
@@ -265,6 +316,82 @@ def test_fr015_collection_rejects_worker_visible_private_source_id(tmp_path: Pat
     broker = TaskBroker(_settings(root))
     with pytest.raises(ConfigurationError, match="private identifier"):
         broker.create_collection("private-id-run")
+
+
+def test_fr015_collection_rejects_worker_visible_framework_name(tmp_path: Path) -> None:
+    root = scaffold_calibration_workspace(tmp_path / "framework-name", size=10)
+    seeds_path = Workspace(root).seeds_path
+    lines = seeds_path.read_text(encoding="utf-8").splitlines()
+    first = json.loads(lines[0])
+    first["question"] += " Apply the AIWG procedure."
+    lines[0] = json.dumps(first, sort_keys=True, separators=(",", ":"))
+    seeds_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    broker = TaskBroker(_settings(root))
+    with pytest.raises(ConfigurationError, match="private identifier"):
+        broker.create_collection("framework-name-run")
+
+
+def test_opaque_v2_additively_migrates_the_private_broker(tmp_path: Path) -> None:
+    root = scaffold_calibration_workspace(tmp_path / "migration", size=10)
+    settings = _settings(root)
+    connection = sqlite3.connect(settings.database)
+    try:
+        connection.executescript(
+            """
+            CREATE TABLE collection_runs (
+                run_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                expected_tasks INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                finalized_at TEXT,
+                failure TEXT,
+                input_sha256 TEXT
+            );
+            CREATE TABLE tasks (
+                task_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES collection_runs(run_id),
+                seed_id TEXT NOT NULL,
+                candidate_index INTEGER NOT NULL,
+                question TEXT NOT NULL,
+                state TEXT NOT NULL,
+                lease_digest TEXT,
+                lease_expires_at REAL,
+                answer TEXT,
+                submitted_at TEXT,
+                UNIQUE (run_id, seed_id, candidate_index)
+            );
+            INSERT INTO collection_runs(
+                run_id, state, expected_tasks, created_at, input_sha256
+            ) VALUES ('legacy-ready', 'ready', 1, '2026-09-25T00:00:00Z', '{}');
+            INSERT INTO tasks(
+                task_id, run_id, seed_id, candidate_index, question, state, answer, submitted_at
+            ) VALUES (
+                'legacy-task', 'legacy-ready', 'legacy-seed', 0, 'Legacy question?',
+                'submitted', 'legacy answer', '2026-09-25T00:00:00Z'
+            );
+            """
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    broker = TaskBroker(settings)
+    with broker._connection() as connection:
+        columns = {row["name"] for row in connection.execute("PRAGMA table_info(tasks)").fetchall()}
+        run_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(collection_runs)").fetchall()
+        }
+        task = connection.execute(
+            "SELECT state, answer, derivation_json FROM tasks WHERE task_id = 'legacy-task'"
+        ).fetchone()
+    assert "derivation_json" in columns
+    assert "response_contract" in run_columns
+    assert broker.status("legacy-ready").state == "collecting"
+    assert broker.status("legacy-ready").response_contract == "structured-derivation-v2"
+    assert task["state"] == "queued"
+    assert task["answer"] is None
+    assert task["derivation_json"] is None
 
 
 def test_nfr013_projected_question_and_transport_body_are_bounded(tmp_path: Path) -> None:
