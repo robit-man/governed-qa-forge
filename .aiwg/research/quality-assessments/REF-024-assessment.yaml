@@ -1,0 +1,17 @@
+ref_id: REF-024
+grade: high
+decision: include
+design: peer-reviewed controlled rationale-distillation study with four-run reporting
+directness: moderate for rationale value; low for 27B generalist scale
+strengths:
+  - label-only and rationale supervision comparisons
+  - multiple student sizes and data fractions
+  - four random runs
+  - reproducible code
+limitations:
+  - four task-specific benchmarks
+  - encoder-decoder students differ from chat LMs
+  - explanation faithfulness not established
+risk_of_bias: low
+certainty: high for task-specific rationale supervision
+decision_use: retain distinct rationale and final-answer targets and ablate their contribution

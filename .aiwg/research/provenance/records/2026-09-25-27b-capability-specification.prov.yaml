@@ -1,0 +1,32 @@
+provenance_version: "1.0"
+record_id: prov-2026-09-25-27b-capability-specification
+entity:
+  path: synthesis/27b-capability-corpus-specification.md
+  sha256: 65d2f3bc83c60128c97f90ba7ff1e58c49f46eb21ec21c2015f3cac672da82a3
+  type: research_synthesis
+activity:
+  type: aiwg_27b_capability_specification_induction
+  started_on: 2026-09-25
+  completed_on: 2026-09-25
+  methods:
+    - research-workflow
+    - induct-research
+    - memory-ingest
+    - research-document
+agents:
+  - id: codex-root
+    role: evidence_synthesis_and_specification
+used:
+  local_refs: [REF-003, REF-004, REF-006, REF-008, REF-011, REF-015, REF-016, REF-017, REF-018, REF-019, REF-020, REF-021, REF-022, REF-023, REF-024, REF-025, REF-026, REF-027, REF-028, REF-029, REF-030, REF-031]
+  source_fixity_manifest:
+    path: fixity-manifest.json
+    sha256: d15d27fd400e5da3ceb34ccb967933bff27ed3addf97d3a56149de273f1012d7
+  source_register:
+    path: sources/INDEX.md
+    sha256: c1b9901f64e133ab1cbdc033f258572d8cebfb66a21ffa686d132307d59784e5
+controls:
+  source_files_mutated: false
+  external_workloads_started: false
+  cuda_used: false
+  model_generation_performed: false
+decision: inducted_as_27b_capability_profile_specification

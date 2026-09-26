@@ -1,0 +1,19 @@
+ref_id: REF-031
+grade: moderate
+decision: include
+design: COLM 2026 controlled study of optimization, data, teacher, model family, and scale
+directness: very_high because it includes a dense Gemma 3 27B experiment
+strengths:
+  - direct 27B result
+  - verified 20K long-CoT corpus
+  - cross-domain, general-capability, and safety evaluation
+  - optimization-trajectory and data-quality ablations
+  - multiple model families and seeds for principal settings
+limitations:
+  - math remains the primary domain
+  - only one 27B family and no full multi-seed 27B study
+  - GRPO comparison is not FLOP matched
+  - safety and trace detectors partly rely on judges or rules
+risk_of_bias: moderate
+certainty: moderate_to_high for conditional SFT generalization
+decision_use: make a 20K verified reasoning core, monitor dip-and-recovery, and add safety replay gates

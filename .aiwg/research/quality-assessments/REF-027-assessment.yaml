@@ -1,0 +1,17 @@
+ref_id: REF-027
+grade: moderate
+decision: include
+design: synthetic behavior-training study with seen and withheld attack families
+directness: high for latent instruction hierarchy; low for an open 27B implementation
+strengths:
+  - behavioral construction method is explicit
+  - evaluates held-out attack classes
+  - checks over-refusal and generic capability
+limitations:
+  - proprietary GPT-3.5 variant
+  - SFT and RLHF effects not isolated
+  - undisclosed data scale
+  - extensive model-judge use
+risk_of_bias: moderate
+certainty: moderate
+decision_use: encode AIWG principles through contrastive behavior examples, not tags

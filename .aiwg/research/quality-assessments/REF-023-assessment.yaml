@@ -1,0 +1,17 @@
+ref_id: REF-023
+grade: high
+decision: include
+design: broad multi-model instruction-tuning study across task count, model scale, and CoT data
+directness: moderate; 8B and 62B bracket the target
+strengths:
+  - 1836-task mixture
+  - held-out task evaluation
+  - model-size and task-count scaling
+  - explicit CoT ablation
+limitations:
+  - older model families and data
+  - broad benchmark aggregation may hide regressions
+  - some training sources can overlap pretraining
+risk_of_bias: low_to_moderate
+certainty: high
+decision_use: count semantic task families and hold out entire tasks, not only rows

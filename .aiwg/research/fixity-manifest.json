@@ -21,6 +21,19 @@
     {"ref_id":"REF-015","path":"REF-015.pdf","sha256":"d98ca66b0446ceeb76c9a93fdcc59335a78dfab108483786bb61c369e9f2ca56"},
     {"ref_id":"REF-016","path":"REF-016.pdf","sha256":"ece87dfe4ffeb818a8d23eecede281bafcab0d0756c1243804542e9a807a82ee"},
     {"ref_id":"REF-017","path":"REF-017.pdf","sha256":"6605b8de589d93f9e1c3a80b9471b5b0f5bc85e23bf066ec6ef6bf7d1d8d962a"},
-    {"ref_id":"REF-018","path":"REF-018.pdf","sha256":"d407a2c435f7d2fc84e10f4393ea6ce7955350740f564bad949bd00ae18246b4"}
+    {"ref_id":"REF-018","path":"REF-018.pdf","sha256":"d407a2c435f7d2fc84e10f4393ea6ce7955350740f564bad949bd00ae18246b4"},
+    {"ref_id":"REF-019","path":"REF-019.pdf","sha256":"598932c9f96849cd52495d8b3e12ba4d224e41d5588d2278a78f76c744d8a3bc"},
+    {"ref_id":"REF-020","path":"REF-020.pdf","sha256":"a4f2ac531f22d57ae0cc1c5374655a4424588e4883e2e251b0df1cdc291fb943"},
+    {"ref_id":"REF-021","path":"REF-021.pdf","sha256":"b191b0a365a64b4ab2791d117069ed17a2933d03554a662ced58b37df52018f4"},
+    {"ref_id":"REF-022","path":"REF-022.pdf","sha256":"79bed1ef4ce4bb332f43bdc87d60709e644560f8f3bb6d14913a473cc82c251f"},
+    {"ref_id":"REF-023","path":"REF-023.pdf","sha256":"771f758c1b711c2a63ca2439e80ab90751351d721632897a058c0205ba9e2a22"},
+    {"ref_id":"REF-024","path":"REF-024.pdf","sha256":"bf2651f337c936c02ea6609f7b51e5d0a8227983ebb431647bd1504aea1eef32"},
+    {"ref_id":"REF-025","path":"REF-025.pdf","sha256":"fbd170e2042c32950c3fe97d3a558d89e8a8dffaadc942e774ccb4b751abc123"},
+    {"ref_id":"REF-026","path":"REF-026.pdf","sha256":"348a284034d88ed17d381f2300be5cc377d323a2010403edee50d013bb003d00"},
+    {"ref_id":"REF-027","path":"REF-027.pdf","sha256":"fbc2d65e913e75b8f0ae74e83e3443c36a727636d1038a071a2f10d8be63dac4"},
+    {"ref_id":"REF-028","path":"REF-028.pdf","sha256":"a7ae31d03dd631db964406bc5f604ac62dc7aaa27847d63e54c4d326026c26a2"},
+    {"ref_id":"REF-029","path":"REF-029.pdf","sha256":"38207db0331896e9558cc803d04188f32dddda1709139c53f985680d1b78e06c"},
+    {"ref_id":"REF-030","path":"REF-030.pdf","sha256":"ebe6aaf90a9e309732a45c1f809a40808b61ec46f737b0306dba80f21a149c54"},
+    {"ref_id":"REF-031","path":"REF-031.pdf","sha256":"23c8527985b7e0960c011bde148e1ea3182dffbbb1bed27721710c9fa00bc37f"}
   ]
 }

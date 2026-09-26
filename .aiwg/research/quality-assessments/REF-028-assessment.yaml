@@ -1,0 +1,18 @@
+ref_id: REF-028
+grade: moderate
+decision: include
+design: open agent-tuning study with component, data-scale, model-scale, and negative-data analyses
+directness: moderate; 7B is primary and 13B/70B bracket 27B
+strengths:
+  - separates format from agent reasoning
+  - includes held-out environments
+  - tests negative examples and model scale
+  - publishes dataset composition
+limitations:
+  - limited agent environments
+  - small general-capability changes
+  - hallucination metrics emphasize format
+  - preprint
+risk_of_bias: moderate
+certainty: moderate
+decision_use: add no-tool and no-call negatives and vary surface formats

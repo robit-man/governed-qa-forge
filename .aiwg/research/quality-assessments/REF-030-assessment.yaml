@@ -1,0 +1,17 @@
+ref_id: REF-030
+grade: moderate
+decision: include_with_dissent
+design: peer-reviewed SFT-versus-RL comparison on two rule/visual environments
+directness: moderate for post-training mechanism; low for 27B general language claims
+strengths:
+  - matched-compute comparisons from shared initialization
+  - explicit ID and OOD rule variants
+  - verifier-step and initialization ablations
+limitations:
+  - one 11B multimodal backbone
+  - two controlled environments
+  - SFT lacks modern verified long-CoT data
+  - claim is contradicted under other conditions by REF-031
+risk_of_bias: moderate
+certainty: moderate within studied tasks
+decision_use: build RLVR assets and compare base, SFT, and SFT-plus-RL without universalizing the headline

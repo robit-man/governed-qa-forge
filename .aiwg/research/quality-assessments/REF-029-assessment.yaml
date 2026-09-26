@@ -1,0 +1,18 @@
+ref_id: REF-029
+grade: high
+decision: include
+design: peer-reviewed dynamic benchmark with objective grading and public reproducibility
+directness: high for evaluation design; not a training-efficacy source
+strengths:
+  - monthly refresh and temporary private slice
+  - recent information sources
+  - deterministic grading
+  - broad categories and public model outputs
+limitations:
+  - excludes many open-ended tasks
+  - English-centric
+  - prompt-family bias remains
+  - limited contamination cannot be excluded
+risk_of_bias: low
+certainty: high
+decision_use: maintain a rolling temporal holdout and objective external suite

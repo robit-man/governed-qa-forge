@@ -1,0 +1,18 @@
+ref_id: REF-021
+grade: moderate
+decision: include
+design: large technical report with multi-stage training and a direct 32B distillation/RL comparison
+directness: high for 32B reasoning distillation; moderate for a reproducible open corpus recipe
+strengths:
+  - direct dense 32B results
+  - broad math, code, STEM, logic, and general mixture
+  - reports data composition and key hyperparameters
+  - compares SFT distillation with large-scale RL
+limitations:
+  - incomplete data and teacher disclosure
+  - non-compute-matched comparisons
+  - single-turn-heavy data
+  - authors evaluate their own system
+risk_of_bias: moderate
+certainty: moderate
+decision_use: use mixed SFT distillation first and reserve RL for reliably verifiable prompts

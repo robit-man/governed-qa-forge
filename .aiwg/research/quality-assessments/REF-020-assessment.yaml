@@ -1,0 +1,17 @@
+ref_id: REF-020
+grade: moderate
+decision: include
+design: COLM 2025 paper with a direct 32B full-parameter SFT study and multiple ablations
+directness: high for narrow 27B-class math reasoning; moderate for procedural transfer
+strengths:
+  - direct 32B evidence
+  - controlled data-size, difficulty, trace-quality, backbone, and model-size analyses
+  - evaluates several OOD math and STEM tasks
+limitations:
+  - math-centric
+  - proxy quality score rewards keywords and length
+  - one principal model family
+  - small benchmark samples and possible contamination
+risk_of_bias: moderate
+certainty: moderate
+decision_use: create compact verified capability primers only where the base already has prerequisites
